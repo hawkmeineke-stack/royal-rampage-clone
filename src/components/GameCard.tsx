@@ -28,8 +28,8 @@ export const GameCard = ({ card, onClick, isPlayable, isPreview = false }: GameC
       onClick={onClick}
       disabled={!isPlayable || isPreview}
       className={cn(
-        "relative bg-card border-2 rounded-lg transition-all duration-200 flex flex-col items-center justify-between p-2 shadow-card",
-        isPreview ? "w-12 h-16 opacity-75 scale-75" : "w-16 h-20",
+        "relative bg-card border-2 rounded-lg transition-all duration-200 flex flex-col items-center justify-between p-3 shadow-card",
+        isPreview ? "w-16 h-20 opacity-75 scale-75" : "w-20 h-28",
         rarityColors[card.rarity],
         rarityGlow[card.rarity],
         isPlayable && !isPreview && "hover:animate-card-hover cursor-pointer",

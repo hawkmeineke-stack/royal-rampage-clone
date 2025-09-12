@@ -9,9 +9,9 @@ interface CardHandProps {
 
 export const CardHand = ({ cards, nextCard, onCardPlay }: CardHandProps) => {
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-6">
       {/* Hand Cards */}
-      <div className="flex gap-2">
+      <div className="flex gap-3">
         {cards.map((card, index) => (
           <GameCard
             key={`${card.id}-${index}`}

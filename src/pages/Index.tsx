@@ -18,13 +18,13 @@ const Index = () => {
           <GameArena gameState={gameState} />
         </div>
 
-        {/* Bottom UI */}
-        <div className="bg-card border-t border-border p-4">
-          <div className="max-w-4xl mx-auto flex items-center justify-between gap-4">
+        {/* Bottom UI - Fixed positioning for better visibility */}
+        <div className="bg-card border-t-2 border-primary p-6 min-h-[120px]">
+          <div className="max-w-6xl mx-auto flex items-center justify-between gap-6">
             {/* Elixir Counter */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-4">
               <ElixirBar elixir={gameState.elixir} />
-              <span className="text-lg font-bold text-secondary animate-elixir-glow">
+              <span className="text-2xl font-bold text-secondary animate-elixir-glow">
                 {gameState.elixir}/10
               </span>
             </div>
