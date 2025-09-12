@@ -5,9 +5,10 @@ interface CardHandProps {
   cards: Card[];
   nextCard: Card;
   onCardPlay: (cardIndex: number) => void;
+  selectedCard: number | null;
 }
 
-export const CardHand = ({ cards, nextCard, onCardPlay }: CardHandProps) => {
+export const CardHand = ({ cards, nextCard, onCardPlay, selectedCard }: CardHandProps) => {
   return (
     <div className="flex items-center gap-6">
       {/* Hand Cards */}
@@ -18,6 +19,7 @@ export const CardHand = ({ cards, nextCard, onCardPlay }: CardHandProps) => {
             card={card}
             onClick={() => onCardPlay(index)}
             isPlayable={true}
+            isSelected={selectedCard === index}
           />
         ))}
       </div>

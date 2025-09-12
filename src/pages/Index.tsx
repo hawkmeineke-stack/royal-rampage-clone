@@ -34,6 +34,7 @@ const Index = () => {
               cards={gameState.hand}
               nextCard={gameState.nextCard}
               onCardPlay={gameState.playCard}
+              selectedCard={gameState.selectedCard}
             />
           </div>
         </div>

@@ -6,9 +6,10 @@ interface GameCardProps {
   onClick: () => void;
   isPlayable: boolean;
   isPreview?: boolean;
+  isSelected?: boolean;
 }
 
-export const GameCard = ({ card, onClick, isPlayable, isPreview = false }: GameCardProps) => {
+export const GameCard = ({ card, onClick, isPlayable, isPreview = false, isSelected = false }: GameCardProps) => {
   const rarityColors = {
     common: 'border-muted',
     rare: 'border-secondary',
@@ -33,7 +34,8 @@ export const GameCard = ({ card, onClick, isPlayable, isPreview = false }: GameC
         rarityColors[card.rarity],
         rarityGlow[card.rarity],
         isPlayable && !isPreview && "hover:animate-card-hover cursor-pointer",
-        !isPlayable && !isPreview && "opacity-50 cursor-not-allowed"
+        !isPlayable && !isPreview && "opacity-50 cursor-not-allowed",
+        isSelected && "ring-4 ring-primary ring-opacity-75 scale-110 shadow-primary/50"
       )}
     >
       {/* Card Icon */}
