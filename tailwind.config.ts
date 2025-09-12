@@ -22,10 +22,12 @@ export default {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          glow: "hsl(var(--primary-glow))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
           foreground: "hsl(var(--secondary-foreground))",
+          glow: "hsl(var(--secondary-glow))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
@@ -57,6 +59,30 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        // Game-specific colors
+        arena: {
+          grass: "hsl(var(--arena-grass))",
+          water: "hsl(var(--arena-water))",
+          stone: "hsl(var(--arena-stone))",
+        },
+        team: {
+          blue: "hsl(var(--team-blue))",
+          red: "hsl(var(--team-red))",
+        },
+      },
+      backgroundImage: {
+        'gradient-primary': 'var(--gradient-primary)',
+        'gradient-elixir': 'var(--gradient-elixir)',
+        'gradient-arena': 'var(--gradient-arena)',
+      },
+      boxShadow: {
+        'card': 'var(--shadow-card)',
+        'tower': 'var(--shadow-tower)',
+        'elixir': 'var(--shadow-elixir)',
+      },
+      transitionTimingFunction: {
+        'smooth': 'var(--transition-smooth)',
+        'bounce': 'var(--bounce)',
       },
       borderRadius: {
         lg: "var(--radius)",
@@ -80,10 +106,31 @@ export default {
             height: "0",
           },
         },
+        "elixir-fill": {
+          "0%": { transform: "scaleY(0)" },
+          "100%": { transform: "scaleY(1)" },
+        },
+        "card-hover": {
+          "0%": { transform: "translateY(0) scale(1)" },
+          "100%": { transform: "translateY(-4px) scale(1.02)" },
+        },
+        "tower-damage": {
+          "0%, 100%": { transform: "rotate(0deg)" },
+          "25%": { transform: "rotate(-2deg)" },
+          "75%": { transform: "rotate(2deg)" },
+        },
+        "elixir-glow": {
+          "0%, 100%": { boxShadow: "0 0 10px hsl(var(--secondary) / 0.3)" },
+          "50%": { boxShadow: "0 0 20px hsl(var(--secondary) / 0.8)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
+        "elixir-fill": "elixir-fill 2.8s linear infinite",
+        "card-hover": "card-hover 0.2s ease-out forwards",
+        "tower-damage": "tower-damage 0.3s ease-in-out",
+        "elixir-glow": "elixir-glow 1s ease-in-out infinite",
       },
     },
   },
