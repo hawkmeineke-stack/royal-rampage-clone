@@ -12,7 +12,5 @@
     "allowJs": true,
     "noUnusedLocals": false,
     "strictNullChecks": false
-    # this makes the ai check the data more strictly
-    "strict": true, 
   }
 }
