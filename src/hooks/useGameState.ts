@@ -56,14 +56,14 @@ interface GameState {
 }
 
 const CARDS: Card[] = [
-  { id: 'archers', name: 'Archers', cost: 3, type: 'troop', icon: '🏹', rarity: 'common', health: 200, damage: 80, speed: 2, range: 4 },
-  { id: 'knight', name: 'Knight', cost: 3, type: 'troop', icon: '⚔️', rarity: 'common', health: 600, damage: 120, speed: 1.5, range: 1 },
+  { id: 'archers', name: 'Archers', cost: 3, type: 'troop', icon: '🏹', rarity: 'common', health: 250, damage: 80, speed: 0.8, range: 4 },
+  { id: 'knight', name: 'Knight', cost: 3, type: 'troop', icon: '⚔️', rarity: 'common', health: 600, damage: 120, speed: 0.6, range: 1 },
   { id: 'fireball', name: 'Fireball', cost: 4, type: 'spell', icon: '🔥', rarity: 'rare', damage: 300 },
-  { id: 'giant', name: 'Giant', cost: 5, type: 'troop', icon: '👹', rarity: 'rare', health: 1200, damage: 150, speed: 0.8, range: 1 },
-  { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: '🧙', rarity: 'rare', health: 300, damage: 140, speed: 1.8, range: 3 },
-  { id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', icon: '💀', rarity: 'common', health: 50, damage: 60, speed: 2.5, range: 1 },
+  { id: 'giant', name: 'Giant', cost: 5, type: 'troop', icon: '👹', rarity: 'rare', health: 1200, damage: 150, speed: 0.4, range: 1 },
+  { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: '🧙', rarity: 'rare', health: 300, damage: 140, speed: 0.7, range: 3 },
+  { id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', icon: '💀', rarity: 'common', health: 65, damage: 67, speed: 1.0, range: 1 },
   { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '🏹', rarity: 'common', damage: 150 },
-  { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 400, damage: 110, speed: 1.6, range: 1 },
+  { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 400, damage: 110, speed: 0.6, range: 1 },
 ];
 
 const createInitialTowers = (): { playerTowers: Tower[], enemyTowers: Tower[] } => {
@@ -318,36 +318,17 @@ export const useGameState = () => {
           );
 
           // Attack if in range
-          if (distanceToTarget <= troop.range * 2) {
+          if (distanceToTarget <= troop.range * 3) {
             if (currentTime - troop.lastAttackTime > 1000) { // Attack every second
-              const damage = troop.damage;
-              
-              // Damage target troop
-              if ('cardId' in target) {
-                prev.troops = prev.troops.map(t => 
-                  t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
-                );
-              } else {
-                // Damage target tower
-                if (troop.team === 'player') {
-                  prev.enemyTowers = prev.enemyTowers.map(t => 
-                    t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
-                  );
-                } else {
-                  prev.playerTowers = prev.playerTowers.map(t => 
-                    t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
-                  );
-                }
-              }
-              
-              return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime };
+              // Attack logic will be handled in a separate state update to avoid mutation
+              return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime, target };
             }
-            return { ...troop, state: 'attacking' as const };
+            return { ...troop, state: 'attacking' as const, target };
           }
 
           // Move towards target
-          const moveX = (target.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.5;
-          const moveY = (target.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.5;
+          const moveX = (target.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.2;
+          const moveY = (target.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.2;
 
           return {
             ...troop,
@@ -355,11 +336,44 @@ export const useGameState = () => {
               x: troop.position.x + moveX,
               y: troop.position.y + moveY
             },
-            state: 'moving' as const
+            state: 'moving' as const,
+            target
           };
-        }).filter(troop => troop.state !== 'dead');
+        });
 
-        return { ...prev, troops: updatedTroops };
+        // Handle combat damage in a separate pass to avoid mutation issues
+        let finalTroops = [...updatedTroops];
+        
+        updatedTroops.forEach(attackingTroop => {
+          if (attackingTroop.state === 'attacking' && attackingTroop.target && currentTime - attackingTroop.lastAttackTime >= 1000) {
+            const target = attackingTroop.target;
+            const damage = attackingTroop.damage;
+            
+            // Apply damage to target
+            if ('cardId' in target) {
+              // Target is a troop - find and damage it
+              finalTroops = finalTroops.map(t => 
+                t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+              );
+            } else {
+              // Target is a tower
+              if (attackingTroop.team === 'player') {
+                prev.enemyTowers = prev.enemyTowers.map(t => 
+                  t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+                );
+              } else {
+                prev.playerTowers = prev.playerTowers.map(t => 
+                  t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+                );
+              }
+            }
+          }
+        });
+
+        // Filter out dead troops
+        const aliveTroops = finalTroops.filter(troop => troop.health > 0);
+
+        return { ...prev, troops: aliveTroops };
       });
     }, 100);
 
