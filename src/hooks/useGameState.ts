@@ -277,7 +277,7 @@ export const useGameState = () => {
 
           // Attack the closest troop
           if (closestTroop) {
-            const damage = 150; // Tower damage
+            const damage = 50; // Reduced tower damage
             updatedTroops = updatedTroops.map(t => 
               t.id === closestTroop!.id ? { ...t, health: Math.max(0, t.health - damage) } : t
             );
