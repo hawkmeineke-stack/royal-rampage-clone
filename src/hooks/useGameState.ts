@@ -34,16 +34,20 @@ export interface Troop {
   speed: number;
   range: number;
   icon: string;
-  target: Tower | null;
+  target: Tower | Troop | null;
   lastAttackTime: number;
   state: 'moving' | 'attacking' | 'dead';
 }
 
 interface GameState {
   elixir: number;
+  enemyElixir: number;
   hand: Card[];
   nextCard: Card;
   deck: Card[];
+  enemyHand: Card[];
+  enemyNextCard: Card;
+  enemyDeck: Card[];
   playerTowers: Tower[];
   enemyTowers: Tower[];
   troops: Troop[];
@@ -90,13 +94,18 @@ const shuffleDeck = (deck: Card[]): Card[] => {
 export const useGameState = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     const { playerTowers, enemyTowers } = createInitialTowers();
-    const deck = shuffleDeck([...CARDS, ...CARDS]); // Double deck for more cards
+    const playerDeck = shuffleDeck([...CARDS, ...CARDS]);
+    const enemyDeck = shuffleDeck([...CARDS, ...CARDS]);
     
     return {
       elixir: 5,
-      hand: deck.slice(0, 4),
-      nextCard: deck[4],
-      deck: deck.slice(5),
+      enemyElixir: 5,
+      hand: playerDeck.slice(0, 4),
+      nextCard: playerDeck[4],
+      deck: playerDeck.slice(5),
+      enemyHand: enemyDeck.slice(0, 4),
+      enemyNextCard: enemyDeck[4],
+      enemyDeck: enemyDeck.slice(5),
       playerTowers,
       enemyTowers,
       troops: [],
@@ -105,16 +114,81 @@ export const useGameState = () => {
     };
   });
 
-  // Elixir regeneration
+  // Elixir regeneration for both players
   useEffect(() => {
     if (gameState.gameStatus !== 'playing') return;
 
     const interval = setInterval(() => {
       setGameState(prev => ({
         ...prev,
-        elixir: Math.min(10, prev.elixir + 1)
+        elixir: Math.min(10, prev.elixir + 1),
+        enemyElixir: Math.min(10, prev.enemyElixir + 1)
       }));
     }, 2800);
+
+    return () => clearInterval(interval);
+  }, [gameState.gameStatus]);
+
+  // Enemy AI - place cards
+  useEffect(() => {
+    if (gameState.gameStatus !== 'playing') return;
+
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        // Only place cards if enemy has enough elixir and there are affordable cards
+        const affordableCards = prev.enemyHand
+          .map((card, index) => ({ card, index }))
+          .filter(({ card }) => card.cost <= prev.enemyElixir && card.type === 'troop');
+
+        if (affordableCards.length === 0) return prev;
+
+        // 30% chance to place a card each interval
+        if (Math.random() > 0.3) return prev;
+
+        const { card, index } = affordableCards[Math.floor(Math.random() * affordableCards.length)];
+        
+        // Place in enemy territory (top 60% of arena)
+        const x = 25 + Math.random() * 50; // Random x between 25-75%
+        const y = 10 + Math.random() * 30; // Random y between 10-40%
+
+        const troopId = `${card.id}-enemy-${Date.now()}`;
+        const newTroop: Troop = {
+          id: troopId,
+          cardId: card.id,
+          name: card.name,
+          team: 'enemy',
+          position: { x, y },
+          health: card.health || 100,
+          maxHealth: card.health || 100,
+          damage: card.damage || 50,
+          speed: card.speed || 1,
+          range: card.range || 1,
+          icon: card.icon,
+          target: null,
+          lastAttackTime: 0,
+          state: 'moving'
+        };
+
+        const newEnemyHand = [...prev.enemyHand];
+        const newEnemyDeck = [...prev.enemyDeck];
+        
+        // Move next card to hand
+        newEnemyHand[index] = prev.enemyNextCard;
+        
+        // Get new next card from deck
+        const nextCard = newEnemyDeck.length > 0 ? newEnemyDeck[0] : CARDS[Math.floor(Math.random() * CARDS.length)];
+        const remainingDeck = newEnemyDeck.length > 0 ? newEnemyDeck.slice(1) : [];
+
+        return {
+          ...prev,
+          enemyElixir: prev.enemyElixir - card.cost,
+          enemyHand: newEnemyHand,
+          enemyNextCard: nextCard,
+          enemyDeck: remainingDeck,
+          troops: [...prev.troops, newTroop],
+        };
+      });
+    }, 3000); // Check every 3 seconds
 
     return () => clearInterval(interval);
   }, [gameState.gameStatus]);
@@ -131,44 +205,92 @@ export const useGameState = () => {
 
           // Find target if none
           if (!troop.target) {
-            const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
-            const aliveTowers = enemyTowers.filter(t => t.health > 0);
-            if (aliveTowers.length === 0) return troop;
+            // First check for enemy troops in range
+            const enemyTroops = prev.troops.filter(t => 
+              t.team !== troop.team && 
+              t.health > 0 && 
+              t.state !== 'dead'
+            );
 
-            // Target closest tower
-            const closest = aliveTowers.reduce((closest, tower) => {
-              const distToTower = Math.sqrt(Math.pow(tower.position.x - troop.position.x, 2) + Math.pow(tower.position.y - troop.position.y, 2));
-              const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
-              return distToTower < distToClosest ? tower : closest;
+            let closestEnemy: Troop | Tower | null = null;
+            let closestDistance = Infinity;
+
+            // Check enemy troops first
+            enemyTroops.forEach(enemyTroop => {
+              const distance = Math.sqrt(
+                Math.pow(enemyTroop.position.x - troop.position.x, 2) + 
+                Math.pow(enemyTroop.position.y - troop.position.y, 2)
+              );
+              if (distance < closestDistance && distance <= troop.range * 3) {
+                closestDistance = distance;
+                closestEnemy = enemyTroop;
+              }
             });
+
+            // If no enemy troops in range, target towers
+            if (!closestEnemy) {
+              const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
+              const aliveTowers = enemyTowers.filter(t => t.health > 0);
+              
+              if (aliveTowers.length > 0) {
+                closestEnemy = aliveTowers.reduce((closest, tower) => {
+                  const distToTower = Math.sqrt(Math.pow(tower.position.x - troop.position.x, 2) + Math.pow(tower.position.y - troop.position.y, 2));
+                  const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
+                  return distToTower < distToClosest ? tower : closest;
+                });
+              }
+            }
             
-            return { ...troop, target: closest };
+            return { ...troop, target: closestEnemy };
           }
 
           // Check if target is still alive
-          const targetTower = (troop.team === 'player' ? prev.enemyTowers : prev.playerTowers).find(t => t.id === troop.target?.id);
-          if (!targetTower || targetTower.health <= 0) {
-            return { ...troop, target: null };
+          let target = troop.target;
+          
+          // Check if target is a troop
+          if (target && 'cardId' in target) {
+            const targetTroop = prev.troops.find(t => t.id === target.id);
+            if (!targetTroop || targetTroop.health <= 0 || targetTroop.state === 'dead') {
+              return { ...troop, target: null };
+            }
+            target = targetTroop;
+          } else if (target) {
+            // Target is a tower
+            const targetTower = (troop.team === 'player' ? prev.enemyTowers : prev.playerTowers).find(t => t.id === target.id);
+            if (!targetTower || targetTower.health <= 0) {
+              return { ...troop, target: null };
+            }
+            target = targetTower;
           }
 
+          if (!target) return { ...troop, target: null };
+
           const distanceToTarget = Math.sqrt(
-            Math.pow(targetTower.position.x - troop.position.x, 2) + 
-            Math.pow(targetTower.position.y - troop.position.y, 2)
+            Math.pow(target.position.x - troop.position.x, 2) + 
+            Math.pow(target.position.y - troop.position.y, 2)
           );
 
           // Attack if in range
           if (distanceToTarget <= troop.range * 2) {
             if (currentTime - troop.lastAttackTime > 1000) { // Attack every second
-              // Deal damage to target
               const damage = troop.damage;
-              if (troop.team === 'player') {
-                prev.enemyTowers = prev.enemyTowers.map(t => 
-                  t.id === targetTower.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+              
+              // Damage target troop
+              if ('cardId' in target) {
+                prev.troops = prev.troops.map(t => 
+                  t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
                 );
               } else {
-                prev.playerTowers = prev.playerTowers.map(t => 
-                  t.id === targetTower.id ? { ...t, health: Math.max(0, t.health - damage) } : t
-                );
+                // Damage target tower
+                if (troop.team === 'player') {
+                  prev.enemyTowers = prev.enemyTowers.map(t => 
+                    t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+                  );
+                } else {
+                  prev.playerTowers = prev.playerTowers.map(t => 
+                    t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
+                  );
+                }
               }
               
               return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime };
@@ -177,8 +299,8 @@ export const useGameState = () => {
           }
 
           // Move towards target
-          const moveX = (targetTower.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.5;
-          const moveY = (targetTower.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.5;
+          const moveX = (target.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.5;
+          const moveY = (target.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.5;
 
           return {
             ...troop,
@@ -277,13 +399,18 @@ export const useGameState = () => {
 
   const resetGame = useCallback(() => {
     const { playerTowers, enemyTowers } = createInitialTowers();
-    const deck = shuffleDeck([...CARDS, ...CARDS]);
+    const playerDeck = shuffleDeck([...CARDS, ...CARDS]);
+    const enemyDeck = shuffleDeck([...CARDS, ...CARDS]);
     
     setGameState({
       elixir: 5,
-      hand: deck.slice(0, 4),
-      nextCard: deck[4],
-      deck: deck.slice(5),
+      enemyElixir: 5,
+      hand: playerDeck.slice(0, 4),
+      nextCard: playerDeck[4],
+      deck: playerDeck.slice(5),
+      enemyHand: enemyDeck.slice(0, 4),
+      enemyNextCard: enemyDeck[4],
+      enemyDeck: enemyDeck.slice(5),
       playerTowers,
       enemyTowers,
       troops: [],
