@@ -29,6 +29,14 @@ const Index = () => {
               </span>
             </div>
 
+            {/* Timer */}
+            <div className="text-center">
+              <div className="text-lg font-bold text-primary">
+                {Math.floor(gameState.timeRemaining / 60)}:{(gameState.timeRemaining % 60).toString().padStart(2, '0')}
+              </div>
+              <div className="text-sm text-muted-foreground">Time Remaining</div>
+            </div>
+
             {/* Card Hand */}
             <CardHand
               cards={gameState.hand}

@@ -53,6 +53,7 @@ interface GameState {
   troops: Troop[];
   gameStatus: 'playing' | 'victory' | 'defeat';
   selectedCard: number | null;
+  timeRemaining: number; // 3 minutes in seconds
 }
 
 const CARDS: Card[] = [
@@ -111,8 +112,46 @@ export const useGameState = () => {
       troops: [],
       gameStatus: 'playing' as const,
       selectedCard: null,
+      timeRemaining: 180, // 3 minutes
     };
   });
+
+  // Timer countdown
+  useEffect(() => {
+    if (gameState.gameStatus !== 'playing' || gameState.timeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        const newTime = prev.timeRemaining - 1;
+        
+        // Check if time is up
+        if (newTime <= 0) {
+          // Count destroyed towers for each team
+          const playerDestroyedTowers = 3 - prev.playerTowers.filter(t => t.health > 0).length;
+          const enemyDestroyedTowers = 3 - prev.enemyTowers.filter(t => t.health > 0).length;
+          
+          // Determine winner based on tower count
+          let gameStatus: 'playing' | 'victory' | 'defeat' = 'playing';
+          if (enemyDestroyedTowers > playerDestroyedTowers) {
+            gameStatus = 'victory';
+          } else if (playerDestroyedTowers > enemyDestroyedTowers) {
+            gameStatus = 'defeat';
+          } else {
+            // Tie - check remaining tower health
+            const playerTotalHealth = prev.playerTowers.reduce((sum, t) => sum + t.health, 0);
+            const enemyTotalHealth = prev.enemyTowers.reduce((sum, t) => sum + t.health, 0);
+            gameStatus = enemyTotalHealth > playerTotalHealth ? 'defeat' : 'victory';
+          }
+          
+          return { ...prev, timeRemaining: 0, gameStatus };
+        }
+        
+        return { ...prev, timeRemaining: newTime };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.gameStatus, gameState.timeRemaining]);
 
   // Elixir regeneration for both players
   useEffect(() => {
@@ -484,8 +523,8 @@ export const useGameState = () => {
     const card = gameState.hand[gameState.selectedCard];
     if (!card || gameState.elixir < card.cost) return;
 
-    // Only allow placement in player's half (bottom 60% of arena)
-    if (y < 40) return;
+    // Only allow placement in player's half, ending before the bridges (y < 48)
+    if (y < 48) return;
 
     if (card.type === 'troop') {
       const troopId = `${card.id}-${Date.now()}`;
@@ -596,6 +635,7 @@ export const useGameState = () => {
       troops: [],
       gameStatus: 'playing',
       selectedCard: null,
+      timeRemaining: 180, // 3 minutes
     });
   }, []);
 
