@@ -92,21 +92,76 @@ const shuffleDeck = (deck: Card[]): Card[] => {
   return shuffled;
 };
 
+const createUniqueHand = (deck: Card[], handSize: number = 4): { hand: Card[], remainingDeck: Card[] } => {
+  const hand: Card[] = [];
+  const usedCardIds = new Set<string>();
+  const remainingDeck = [...deck];
+  
+  for (let i = 0; i < handSize && remainingDeck.length > 0; i++) {
+    let cardIndex = 0;
+    
+    // Find the first card that's not already in hand
+    while (cardIndex < remainingDeck.length && usedCardIds.has(remainingDeck[cardIndex].id)) {
+      cardIndex++;
+    }
+    
+    if (cardIndex < remainingDeck.length) {
+      const card = remainingDeck[cardIndex];
+      hand.push(card);
+      usedCardIds.add(card.id);
+      remainingDeck.splice(cardIndex, 1);
+    } else {
+      // If we can't find unique cards, break
+      break;
+    }
+  }
+  
+  return { hand, remainingDeck };
+};
+
+const getNextUniqueCard = (deck: Card[], currentHand: Card[]): { card: Card | null, remainingDeck: Card[] } => {
+  const usedCardIds = new Set(currentHand.map(c => c.id));
+  const remainingDeck = [...deck];
+  
+  const cardIndex = remainingDeck.findIndex(card => !usedCardIds.has(card.id));
+  
+  if (cardIndex >= 0) {
+    const card = remainingDeck[cardIndex];
+    remainingDeck.splice(cardIndex, 1);
+    return { card, remainingDeck };
+  }
+  
+  // If no unique cards in deck, return any card
+  if (remainingDeck.length > 0) {
+    const card = remainingDeck[0];
+    remainingDeck.splice(0, 1);
+    return { card, remainingDeck };
+  }
+  
+  return { card: null, remainingDeck };
+};
+
 export const useGameState = () => {
   const [gameState, setGameState] = useState<GameState>(() => {
     const { playerTowers, enemyTowers } = createInitialTowers();
     const playerDeck = shuffleDeck([...CARDS, ...CARDS]);
     const enemyDeck = shuffleDeck([...CARDS, ...CARDS]);
     
+    const playerHandData = createUniqueHand(playerDeck);
+    const { card: playerNextCard, remainingDeck: playerFinalDeck } = getNextUniqueCard(playerHandData.remainingDeck, playerHandData.hand);
+    
+    const enemyHandData = createUniqueHand(enemyDeck);
+    const { card: enemyNextCard, remainingDeck: enemyFinalDeck } = getNextUniqueCard(enemyHandData.remainingDeck, enemyHandData.hand);
+    
     return {
       elixir: 5,
       enemyElixir: 5,
-      hand: playerDeck.slice(0, 4),
-      nextCard: playerDeck[4],
-      deck: playerDeck.slice(5),
-      enemyHand: enemyDeck.slice(0, 4),
-      enemyNextCard: enemyDeck[4],
-      enemyDeck: enemyDeck.slice(5),
+      hand: playerHandData.hand,
+      nextCard: playerNextCard || CARDS[0],
+      deck: playerFinalDeck,
+      enemyHand: enemyHandData.hand,
+      enemyNextCard: enemyNextCard || CARDS[0],
+      enemyDeck: enemyFinalDeck,
       playerTowers,
       enemyTowers,
       troops: [],
@@ -514,8 +569,8 @@ export const useGameState = () => {
     const card = gameState.hand[gameState.selectedCard];
     if (!card || gameState.elixir < card.cost) return;
 
-    // Only allow placement in player's half, avoiding river area (y 42-58) and before bridges
-    if (y < 42 || (y > 42 && y < 58)) return;
+    // Only allow placement in player's half, up to but not including the river (y < 42)
+    if (y >= 42) return;
 
     if (card.type === 'troop') {
       const troopId = `${card.id}-${Date.now()}`;
@@ -538,20 +593,18 @@ export const useGameState = () => {
 
       setGameState(prev => {
         const newHand = [...prev.hand];
-        const newDeck = [...prev.deck];
         
-        // Move next card to hand
+        // Replace played card with nextCard
         newHand[gameState.selectedCard!] = prev.nextCard;
         
-        // Get new next card from deck
-        const nextCard = newDeck.length > 0 ? newDeck[0] : CARDS[Math.floor(Math.random() * CARDS.length)];
-        const remainingDeck = newDeck.length > 0 ? newDeck.slice(1) : [];
+        // Get new next card that's not already in updated hand
+        const { card: nextCard, remainingDeck } = getNextUniqueCard(prev.deck, newHand);
 
         return {
           ...prev,
           elixir: prev.elixir - card.cost,
           hand: newHand,
-          nextCard,
+          nextCard: nextCard || CARDS[Math.floor(Math.random() * CARDS.length)],
           deck: remainingDeck,
           troops: [...prev.troops, newTroop],
           selectedCard: null,
@@ -580,20 +633,18 @@ export const useGameState = () => {
         });
 
         const newHand = [...prev.hand];
-        const newDeck = [...prev.deck];
         
-        // Move next card to hand
+        // Replace played card with nextCard  
         newHand[gameState.selectedCard!] = prev.nextCard;
         
-        // Get new next card from deck
-        const nextCard = newDeck.length > 0 ? newDeck[0] : CARDS[Math.floor(Math.random() * CARDS.length)];
-        const remainingDeck = newDeck.length > 0 ? newDeck.slice(1) : [];
+        // Get new next card that's not already in updated hand
+        const { card: nextCard, remainingDeck } = getNextUniqueCard(prev.deck, newHand);
 
         return {
           ...prev,
           elixir: prev.elixir - card.cost,
           hand: newHand,
-          nextCard,
+          nextCard: nextCard || CARDS[Math.floor(Math.random() * CARDS.length)],
           deck: remainingDeck,
           troops: updatedTroops,
           enemyTowers: updatedEnemyTowers,
