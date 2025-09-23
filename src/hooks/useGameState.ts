@@ -61,9 +61,9 @@ const CARDS: Card[] = [
   { id: 'knight', name: 'Knight', cost: 3, type: 'troop', icon: '⚔️', rarity: 'common', health: 350, damage: 120, speed: 0.8, range: 1 },
   { id: 'fireball', name: 'Fireball', cost: 4, type: 'spell', icon: '🔥', rarity: 'rare', damage: 300 },
   { id: 'giant', name: 'Giant', cost: 5, type: 'troop', icon: '👹', rarity: 'rare', health: 2000, damage: 150, speed: 0.5, range: 1 },
-  { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: 'ܙ', rarity: 'rare', health: 350, damage: 140, speed: 0.9, range: 3 },
+  { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: '🧙', rarity: 'rare', health: 350, damage: 140, speed: 0.9, range: 3 },
   { id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', icon: '💀', rarity: 'common', health: 65, damage: 67, speed: 1.2, range: 1 },
-  { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '🏹', rarity: 'common', damage: 150 },
+  { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '➹', rarity: 'common', damage: 150 },
   { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 400, damage: 110, speed: 0.8, range: 1 },
 ];
 
@@ -350,7 +350,7 @@ export const useGameState = () => {
 
           // Find target if none
           if (!troop.target) {
-            // Giant only targets towers, other troops can target troops first
+            // Giant only targets towers, other troops prioritize troops over towers
             if (troop.cardId === 'giant') {
               // Giant only targets towers
               const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
@@ -365,44 +365,35 @@ export const useGameState = () => {
                 return { ...troop, target: closestTower };
               }
             } else {
-              // Other troops first check for enemy troops in range
+              // Other troops always prioritize enemy troops over towers
               const enemyTroops = prev.troops.filter(t => 
                 t.team !== troop.team && 
                 t.health > 0 && 
                 t.state !== 'dead'
               );
 
-              let closestEnemy: Troop | Tower | null = null;
-              let closestDistance = Infinity;
-
-              // Check enemy troops first - prioritize closer ones
-              enemyTroops.forEach(enemyTroop => {
-                const distance = Math.sqrt(
-                  Math.pow(enemyTroop.position.x - troop.position.x, 2) + 
-                  Math.pow(enemyTroop.position.y - troop.position.y, 2)
-                );
-                // Troops will target other troops within a larger range and prioritize them
-                if (distance < closestDistance && distance <= 15) {
-                  closestDistance = distance;
-                  closestEnemy = enemyTroop;
-                }
-              });
-
-              // If no enemy troops in range, target towers
-              if (!closestEnemy) {
+              if (enemyTroops.length > 0) {
+                // Always target closest enemy troop if any exist
+                const closestTroop = enemyTroops.reduce((closest, enemyTroop) => {
+                  const distToTroop = Math.sqrt(Math.pow(enemyTroop.position.x - troop.position.x, 2) + Math.pow(enemyTroop.position.y - troop.position.y, 2));
+                  const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
+                  return distToTroop < distToClosest ? enemyTroop : closest;
+                });
+                return { ...troop, target: closestTroop };
+              } else {
+                // Only target towers if no enemy troops exist
                 const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
                 const aliveTowers = enemyTowers.filter(t => t.health > 0);
                 
                 if (aliveTowers.length > 0) {
-                  closestEnemy = aliveTowers.reduce((closest, tower) => {
+                  const closestTower = aliveTowers.reduce((closest, tower) => {
                     const distToTower = Math.sqrt(Math.pow(tower.position.x - troop.position.x, 2) + Math.pow(tower.position.y - troop.position.y, 2));
                     const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
                     return distToTower < distToClosest ? tower : closest;
                   });
+                  return { ...troop, target: closestTower };
                 }
               }
-              
-              return { ...troop, target: closestEnemy };
             }
           }
 
@@ -523,8 +514,8 @@ export const useGameState = () => {
     const card = gameState.hand[gameState.selectedCard];
     if (!card || gameState.elixir < card.cost) return;
 
-    // Only allow placement in player's half, ending before the bridges (y < 48)
-    if (y < 48) return;
+    // Only allow placement in player's half, avoiding river area (y 42-58) and before bridges
+    if (y < 42 || (y > 42 && y < 58)) return;
 
     if (card.type === 'troop') {
       const troopId = `${card.id}-${Date.now()}`;

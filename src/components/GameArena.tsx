@@ -33,7 +33,7 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
 
       {/* Placement Guide */}
       {gameState.selectedCard !== null && (
-        <div className="absolute inset-x-0 bottom-0 h-3/5 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
+        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
           <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold">
             Click to place unit
           </div>
