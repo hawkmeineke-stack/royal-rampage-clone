@@ -569,10 +569,10 @@ export const useGameState = () => {
     const card = gameState.hand[gameState.selectedCard];
     if (!card || gameState.elixir < card.cost) return;
 
-    // Only allow placement in player's half, up to but not including the river (y < 42)
-    if (y >= 42) return;
-
     if (card.type === 'troop') {
+      // Only allow troop placement on player's side of the river (below 50%)
+      if (y <= 50) return;
+
       const troopId = `${card.id}-${Date.now()}`;
       const newTroop: Troop = {
         id: troopId,
@@ -611,7 +611,7 @@ export const useGameState = () => {
         };
       });
     } else if (card.type === 'spell') {
-      // Handle spell cards (fireball, arrows)
+      // Spells can be cast anywhere on the map (no restrictions)
       const damage = card.damage || 0;
       
       setGameState(prev => {

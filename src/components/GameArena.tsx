@@ -33,11 +33,24 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
 
       {/* Placement Guide */}
       {gameState.selectedCard !== null && (
-        <div className="absolute inset-x-0 bottom-0 h-2/5 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
-          <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold">
-            Click to place unit
-          </div>
-        </div>
+        <>
+          {/* Show troop placement area (player's side of river) */}
+          {gameState.hand[gameState.selectedCard]?.type === 'troop' && (
+            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
+              <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold">
+                Click to place troop
+              </div>
+            </div>
+          )}
+          {/* Show full map for spell placement */}
+          {gameState.hand[gameState.selectedCard]?.type === 'spell' && (
+            <div className="absolute inset-0 bg-destructive/10 border-2 border-destructive/30 pointer-events-none">
+              <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-destructive font-bold">
+                Click anywhere to cast spell
+              </div>
+            </div>
+          )}
+        </>
       )}
 
       {/* Player Towers (Bottom) */}
