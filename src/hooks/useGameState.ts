@@ -33,6 +33,7 @@ export interface Troop {
   damage: number;
   speed: number;
   range: number;
+  visionRadius: number;
   icon: string;
   target: Tower | Troop | null;
   lastAttackTime: number;
@@ -51,9 +52,18 @@ interface GameState {
   playerTowers: Tower[];
   enemyTowers: Tower[];
   troops: Troop[];
-  gameStatus: 'playing' | 'victory' | 'defeat';
+  gameStatus: 'playing' | 'victory' | 'defeat' | 'overtime';
   selectedCard: number | null;
   timeRemaining: number; // 3 minutes in seconds
+  overtimeRemaining: number; // 1 minute overtime
+  spellEffects: SpellEffect[];
+}
+
+export interface SpellEffect {
+  id: string;
+  type: 'fireball' | 'arrows';
+  position: { x: number; y: number };
+  startTime: number;
 }
 
 const CARDS: Card[] = [
@@ -66,6 +76,28 @@ const CARDS: Card[] = [
   { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '➹', rarity: 'common', damage: 150 },
   { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 400, damage: 110, speed: 0.8, range: 1 },
 ];
+
+// Bridge positions where troops can cross the river
+const BRIDGES = [
+  { x: 30, y: 50, width: 8 },
+  { x: 70, y: 50, width: 8 },
+];
+
+// River bounds (y: 45-55)
+const RIVER_BOUNDS = { top: 45, bottom: 55 };
+
+const isInRiver = (x: number, y: number): boolean => {
+  return y >= RIVER_BOUNDS.top && y <= RIVER_BOUNDS.bottom;
+};
+
+const canCrossRiver = (x: number, y: number): boolean => {
+  if (!isInRiver(x, y)) return true;
+  
+  return BRIDGES.some(bridge => 
+    x >= bridge.x - bridge.width/2 && 
+    x <= bridge.x + bridge.width/2
+  );
+};
 
 const createInitialTowers = (): { playerTowers: Tower[], enemyTowers: Tower[] } => {
   const playerTowers: Tower[] = [
@@ -168,6 +200,8 @@ export const useGameState = () => {
       gameStatus: 'playing' as const,
       selectedCard: null,
       timeRemaining: 180, // 3 minutes
+      overtimeRemaining: 60, // 1 minute overtime
+      spellEffects: [],
     };
   });
 
@@ -210,22 +244,23 @@ export const useGameState = () => {
 
   // Elixir regeneration for both players
   useEffect(() => {
-    if (gameState.gameStatus !== 'playing') return;
+    if (gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime') return;
 
+    const isOvertime = gameState.gameStatus === 'overtime';
     const interval = setInterval(() => {
       setGameState(prev => ({
         ...prev,
         elixir: Math.min(10, prev.elixir + 1),
         enemyElixir: Math.min(10, prev.enemyElixir + 1)
       }));
-    }, 2800);
+    }, isOvertime ? 1400 : 2800); // Faster elixir in overtime
 
     return () => clearInterval(interval);
   }, [gameState.gameStatus]);
 
   // Enemy AI - place cards
   useEffect(() => {
-    if (gameState.gameStatus !== 'playing') return;
+    if (gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime') return;
 
     const interval = setInterval(() => {
       setGameState(prev => {
@@ -258,6 +293,7 @@ export const useGameState = () => {
             damage: card.damage || 50,
             speed: card.speed || 1,
             range: card.range || 1,
+            visionRadius: 6,
             icon: card.icon,
             target: null,
             lastAttackTime: 0,
@@ -335,7 +371,7 @@ export const useGameState = () => {
 
   // Tower AI - princess towers attack troops in range
   useEffect(() => {
-    if (gameState.gameStatus !== 'playing' || gameState.troops.length === 0) return;
+    if ((gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime') || gameState.troops.length === 0) return;
 
     const interval = setInterval(() => {
       setGameState(prev => {
@@ -395,7 +431,7 @@ export const useGameState = () => {
 
   // Troop AI and movement
   useEffect(() => {
-    if (gameState.gameStatus !== 'playing' || gameState.troops.length === 0) return;
+    if ((gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime') || gameState.troops.length === 0) return;
 
     const interval = setInterval(() => {
       setGameState(prev => {
@@ -403,11 +439,34 @@ export const useGameState = () => {
         const updatedTroops = prev.troops.map(troop => {
           if (troop.health <= 0) return { ...troop, state: 'dead' as const };
 
-          // Find target if none
+          // Vision-based targeting system
           if (!troop.target) {
-            // Giant only targets towers, other troops prioritize troops over towers
-            if (troop.cardId === 'giant') {
-              // Giant only targets towers
+            // Check vision radius for enemy troops first (unless already attacking tower)
+            const enemyTroops = prev.troops.filter(t => 
+              t.team !== troop.team && 
+              t.health > 0 && 
+              t.state !== 'dead'
+            );
+
+            // Check if any enemy is in vision radius
+            const troopsInVision = enemyTroops.filter(enemyTroop => {
+              const distance = Math.sqrt(
+                Math.pow(enemyTroop.position.x - troop.position.x, 2) + 
+                Math.pow(enemyTroop.position.y - troop.position.y, 2)
+              );
+              return distance <= troop.visionRadius;
+            });
+
+            if (troopsInVision.length > 0 && troop.cardId !== 'giant') {
+              // Target closest troop in vision
+              const closestTroop = troopsInVision.reduce((closest, enemyTroop) => {
+                const distToTroop = Math.sqrt(Math.pow(enemyTroop.position.x - troop.position.x, 2) + Math.pow(enemyTroop.position.y - troop.position.y, 2));
+                const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
+                return distToTroop < distToClosest ? enemyTroop : closest;
+              });
+              return { ...troop, target: closestTroop };
+            } else {
+              // Target closest tower if no troops in vision or if Giant
               const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
               const aliveTowers = enemyTowers.filter(t => t.health > 0);
               
@@ -419,35 +478,33 @@ export const useGameState = () => {
                 });
                 return { ...troop, target: closestTower };
               }
-            } else {
-              // Other troops always prioritize enemy troops over towers
+            }
+          } else {
+            // If already has a target, check if new enemy enters vision radius (unless attacking tower)
+            if (!('cardId' in troop.target) && troop.cardId !== 'giant') {
+              // Currently targeting a tower - check for enemy troops in vision
               const enemyTroops = prev.troops.filter(t => 
                 t.team !== troop.team && 
                 t.health > 0 && 
                 t.state !== 'dead'
               );
 
-              if (enemyTroops.length > 0) {
-                // Always target closest enemy troop if any exist
-                const closestTroop = enemyTroops.reduce((closest, enemyTroop) => {
+              const troopsInVision = enemyTroops.filter(enemyTroop => {
+                const distance = Math.sqrt(
+                  Math.pow(enemyTroop.position.x - troop.position.x, 2) + 
+                  Math.pow(enemyTroop.position.y - troop.position.y, 2)
+                );
+                return distance <= troop.visionRadius;
+              });
+
+              // If enemy troop enters vision while moving to tower, switch target
+              if (troopsInVision.length > 0) {
+                const closestTroop = troopsInVision.reduce((closest, enemyTroop) => {
                   const distToTroop = Math.sqrt(Math.pow(enemyTroop.position.x - troop.position.x, 2) + Math.pow(enemyTroop.position.y - troop.position.y, 2));
                   const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
                   return distToTroop < distToClosest ? enemyTroop : closest;
                 });
                 return { ...troop, target: closestTroop };
-              } else {
-                // Only target towers if no enemy troops exist
-                const enemyTowers = troop.team === 'player' ? prev.enemyTowers : prev.playerTowers;
-                const aliveTowers = enemyTowers.filter(t => t.health > 0);
-                
-                if (aliveTowers.length > 0) {
-                  const closestTower = aliveTowers.reduce((closest, tower) => {
-                    const distToTower = Math.sqrt(Math.pow(tower.position.x - troop.position.x, 2) + Math.pow(tower.position.y - troop.position.y, 2));
-                    const distToClosest = Math.sqrt(Math.pow(closest.position.x - troop.position.x, 2) + Math.pow(closest.position.y - troop.position.y, 2));
-                    return distToTower < distToClosest ? tower : closest;
-                  });
-                  return { ...troop, target: closestTower };
-                }
               }
             }
           }
@@ -487,16 +544,40 @@ export const useGameState = () => {
             return { ...troop, state: 'attacking' as const, target };
           }
 
-          // Move towards target
+          // Move towards target with river crossing restrictions
           const moveX = (target.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.3;
           const moveY = (target.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.3;
 
+          let newX = troop.position.x + moveX;
+          let newY = troop.position.y + moveY;
+
+          // Check for river crossing restrictions
+          if (!canCrossRiver(newX, newY)) {
+            // Find nearest bridge
+            const nearestBridge = BRIDGES.reduce((closest, bridge) => {
+              const distToBridge = Math.sqrt(Math.pow(bridge.x - troop.position.x, 2) + Math.pow(50 - troop.position.y, 2));
+              const distToClosest = Math.sqrt(Math.pow(closest.x - troop.position.x, 2) + Math.pow(50 - troop.position.y, 2));
+              return distToBridge < distToClosest ? bridge : closest;
+            });
+
+            // Move towards bridge first
+            const bridgeY = 50; // River center
+            const distanceToBridge = Math.sqrt(Math.pow(nearestBridge.x - troop.position.x, 2) + Math.pow(bridgeY - troop.position.y, 2));
+            
+            if (distanceToBridge > 2) {
+              newX = troop.position.x + (nearestBridge.x - troop.position.x) / distanceToBridge * troop.speed * 0.3;
+              newY = troop.position.y + (bridgeY - troop.position.y) / distanceToBridge * troop.speed * 0.3;
+            }
+          }
+
+          // Don't allow placement in river
+          if (isInRiver(newX, newY) && !canCrossRiver(newX, newY)) {
+            return { ...troop, target }; // Stay in place if can't move
+          }
+
           return {
             ...troop,
-            position: {
-              x: troop.position.x + moveX,
-              y: troop.position.y + moveY
-            },
+            position: { x: newX, y: newY },
             state: 'moving' as const,
             target
           };
@@ -550,8 +631,35 @@ export const useGameState = () => {
       setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
     } else if (enemyKingTower?.health <= 0) {
       setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
+    } else if (gameState.gameStatus === 'overtime') {
+      // In overtime, any tower destruction wins the game
+      const playerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
+      const enemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
+      
+      const prevPlayerActiveTowers = gameState.playerTowers.length;
+      const prevEnemyActiveTowers = gameState.enemyTowers.length;
+      
+      if (playerActiveTowers < prevPlayerActiveTowers) {
+        setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
+      } else if (enemyActiveTowers < prevEnemyActiveTowers) {
+        setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
+      }
     }
-  }, [gameState.playerTowers, gameState.enemyTowers]);
+  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus]);
+
+  // Clean up expired spell effects
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setGameState(prev => ({
+        ...prev,
+        spellEffects: prev.spellEffects.filter(effect => 
+          Date.now() - effect.startTime < 1000 // Remove after 1 second
+        )
+      }));
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, []);
 
   const selectCard = useCallback((cardIndex: number) => {
     const card = gameState.hand[cardIndex];
@@ -570,8 +678,8 @@ export const useGameState = () => {
     if (!card || gameState.elixir < card.cost) return;
 
     if (card.type === 'troop') {
-      // Only allow troop placement on player's side of the river (below 50%)
-      if (y <= 50) return;
+      // Only allow troop placement on player's side of the river (below 50%) and not in river
+      if (y <= 50 || isInRiver(x, y)) return;
 
       const troopId = `${card.id}-${Date.now()}`;
       const newTroop: Troop = {
@@ -585,6 +693,7 @@ export const useGameState = () => {
         damage: card.damage || 50,
         speed: card.speed || 1,
         range: card.range || 1,
+        visionRadius: 6,
         icon: card.icon,
         target: null,
         lastAttackTime: 0,
@@ -613,6 +722,14 @@ export const useGameState = () => {
     } else if (card.type === 'spell') {
       // Spells can be cast anywhere on the map (no restrictions)
       const damage = card.damage || 0;
+      
+      // Add spell effect for animation
+      const spellEffect: SpellEffect = {
+        id: `spell-${Date.now()}`,
+        type: card.id as 'fireball' | 'arrows',
+        position: { x, y },
+        startTime: Date.now()
+      };
       
       setGameState(prev => {
         // Apply area damage to all enemy troops and towers within range
@@ -649,6 +766,7 @@ export const useGameState = () => {
           troops: updatedTroops,
           enemyTowers: updatedEnemyTowers,
           selectedCard: null,
+          spellEffects: [...prev.spellEffects, spellEffect],
         };
       });
     }
@@ -678,6 +796,8 @@ export const useGameState = () => {
       gameStatus: 'playing',
       selectedCard: null,
       timeRemaining: 180, // 3 minutes
+      overtimeRemaining: 60, // 1 minute overtime
+      spellEffects: [],
     });
   }, []);
 

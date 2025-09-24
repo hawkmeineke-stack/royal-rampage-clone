@@ -23,24 +23,36 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
       onClick={handleArenaClick}
     >
       {/* River with bridges */}
-      <div className="absolute inset-x-0 top-1/2 transform -translate-y-1/2 h-16 bg-arena-water opacity-80">
-        <div className="absolute inset-0 bg-gradient-to-r from-arena-water/50 to-arena-water"></div>
+      <div className="absolute inset-x-0 top-1/2 transform -translate-y-1/2 h-16 bg-gradient-to-r from-blue-400/60 to-blue-600/60 border-y-2 border-blue-300/50">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-blue-300/20 to-transparent"></div>
         
         {/* Bridges */}
-        <div className="absolute left-1/4 top-0 w-16 h-full bg-arena-stone rounded-sm border border-arena-stone/50"></div>
-        <div className="absolute right-1/4 top-0 w-16 h-full bg-arena-stone rounded-sm border border-arena-stone/50"></div>
+        <div className="absolute left-[26%] top-0 w-12 h-full bg-stone-400/90 rounded-sm border border-stone-600/50 shadow-md">
+          <div className="absolute inset-1 bg-stone-300/50 rounded-sm"></div>
+        </div>
+        <div className="absolute right-[26%] top-0 w-12 h-full bg-stone-400/90 rounded-sm border border-stone-600/50 shadow-md">
+          <div className="absolute inset-1 bg-stone-300/50 rounded-sm"></div>
+        </div>
       </div>
 
       {/* Placement Guide */}
       {gameState.selectedCard !== null && (
         <>
-          {/* Show troop placement area (player's side of river) */}
+          {/* Show troop placement area (player's side of river, excluding river itself) */}
           {gameState.hand[gameState.selectedCard]?.type === 'troop' && (
-            <div className="absolute inset-x-0 bottom-0 h-1/2 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
-              <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold">
-                Click to place troop
+            <>
+              <div className="absolute inset-x-0 bottom-0 h-1/2 bg-team-blue/10 border-t-2 border-team-blue/30 pointer-events-none">
+                <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold">
+                  Click to place troop (avoid river)
+                </div>
               </div>
-            </div>
+              {/* Show river restriction overlay */}
+              <div className="absolute inset-x-0 top-1/2 transform -translate-y-1/2 h-16 bg-destructive/20 border-2 border-destructive/50 pointer-events-none">
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-xs text-destructive font-bold">
+                  River - Use Bridges
+                </div>
+              </div>
+            </>
           )}
           {/* Show full map for spell placement */}
           {gameState.hand[gameState.selectedCard]?.type === 'spell' && (
@@ -67,6 +79,31 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
       {gameState.troops.map((troop) => (
         <TroopUnit key={troop.id} troop={troop} />
       ))}
+
+      {/* Spell Effects */}
+      {gameState.spellEffects.map((effect) => (
+        <div
+          key={effect.id}
+          className={`absolute transform -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
+            effect.type === 'fireball' 
+              ? 'text-6xl animate-ping' 
+              : 'text-4xl animate-bounce'
+          }`}
+          style={{
+            left: `${effect.position.x}%`,
+            top: `${effect.position.y}%`,
+          }}
+        >
+          {effect.type === 'fireball' ? '💥' : '⚡'}
+        </div>
+      ))}
+
+      {/* Overtime Indicator */}
+      {gameState.gameStatus === 'overtime' && (
+        <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-destructive/90 text-destructive-foreground px-4 py-2 rounded-lg font-bold text-lg animate-pulse pointer-events-none">
+          OVERTIME: {Math.floor(gameState.overtimeRemaining / 60)}:{(gameState.overtimeRemaining % 60).toString().padStart(2, '0')}
+        </div>
+      )}
 
       {/* Arena Decorations */}
       <div className="absolute top-4 left-4 w-8 h-8 bg-primary rounded-full animate-pulse opacity-50"></div>
