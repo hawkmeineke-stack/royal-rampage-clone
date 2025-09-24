@@ -1,5 +1,6 @@
 import { Tower } from "./Tower";
 import { TroopUnit } from "./TroopUnit";
+import { TroopVisionRadius } from "./TroopVisionRadius";
 import { useGameState } from "@/hooks/useGameState";
 
 interface GameArenaProps {
@@ -73,6 +74,15 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
       {/* Enemy Towers (Top) */}
       {gameState.enemyTowers.map((tower) => (
         <Tower key={tower.id} tower={tower} />
+      ))}
+
+      {/* Vision Radius (only show for selected troops in debug) */}
+      {gameState.troops.map((troop) => (
+        <TroopVisionRadius 
+          key={`vision-${troop.id}`} 
+          troop={troop} 
+          showVision={false} // Set to true for debugging
+        />
       ))}
 
       {/* Troops */}

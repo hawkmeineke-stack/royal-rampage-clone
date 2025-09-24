@@ -70,7 +70,7 @@ const CARDS: Card[] = [
   { id: 'archers', name: 'Archers', cost: 3, type: 'troop', icon: '🏹', rarity: 'common', health: 350, damage: 80, speed: 1.0, range: 4 },
   { id: 'knight', name: 'Knight', cost: 3, type: 'troop', icon: '⚔️', rarity: 'common', health: 350, damage: 120, speed: 0.8, range: 1 },
   { id: 'fireball', name: 'Fireball', cost: 4, type: 'spell', icon: '🔥', rarity: 'rare', damage: 300 },
-  { id: 'giant', name: 'Giant', cost: 5, type: 'troop', icon: '👹', rarity: 'rare', health: 2000, damage: 150, speed: 0.5, range: 1 },
+  { id: 'giant', name: 'Giant', cost: 5, type: 'troop', icon: '👹', rarity: 'rare', health: 1400, damage: 150, speed: 0.5, range: 1 },
   { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: '🧙', rarity: 'rare', health: 350, damage: 140, speed: 0.9, range: 3 },
   { id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', icon: '💀', rarity: 'common', health: 65, damage: 67, speed: 1.2, range: 1 },
   { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '➹', rarity: 'common', damage: 150 },
@@ -293,7 +293,7 @@ export const useGameState = () => {
             damage: card.damage || 50,
             speed: card.speed || 1,
             range: card.range || 1,
-            visionRadius: 6,
+            visionRadius: 12,
             icon: card.icon,
             target: null,
             lastAttackTime: 0,
@@ -544,33 +544,58 @@ export const useGameState = () => {
             return { ...troop, state: 'attacking' as const, target };
           }
 
-          // Move towards target with river crossing restrictions
+          // Move towards target with improved bridge crossing
           const moveX = (target.position.x - troop.position.x) / distanceToTarget * troop.speed * 0.3;
           const moveY = (target.position.y - troop.position.y) / distanceToTarget * troop.speed * 0.3;
 
           let newX = troop.position.x + moveX;
           let newY = troop.position.y + moveY;
 
-          // Check for river crossing restrictions
-          if (!canCrossRiver(newX, newY)) {
-            // Find nearest bridge
+          // Check if troop needs to cross river
+          const currentSide = troop.position.y < 50 ? 'top' : 'bottom';
+          const targetSide = target.position.y < 50 ? 'top' : 'bottom';
+          const needsToCrossRiver = currentSide !== targetSide;
+
+          if (needsToCrossRiver && isInRiver(newX, newY) && !canCrossRiver(newX, newY)) {
+            // Find nearest bridge and move towards it
             const nearestBridge = BRIDGES.reduce((closest, bridge) => {
               const distToBridge = Math.sqrt(Math.pow(bridge.x - troop.position.x, 2) + Math.pow(50 - troop.position.y, 2));
               const distToClosest = Math.sqrt(Math.pow(closest.x - troop.position.x, 2) + Math.pow(50 - troop.position.y, 2));
               return distToBridge < distToClosest ? bridge : closest;
             });
 
-            // Move towards bridge first
+            // Move towards bridge center
             const bridgeY = 50; // River center
             const distanceToBridge = Math.sqrt(Math.pow(nearestBridge.x - troop.position.x, 2) + Math.pow(bridgeY - troop.position.y, 2));
             
-            if (distanceToBridge > 2) {
+            if (distanceToBridge > 1) {
               newX = troop.position.x + (nearestBridge.x - troop.position.x) / distanceToBridge * troop.speed * 0.3;
               newY = troop.position.y + (bridgeY - troop.position.y) / distanceToBridge * troop.speed * 0.3;
+            } else {
+              // Close to bridge, move towards target
+              newX = troop.position.x + moveX;
+              newY = troop.position.y + moveY;
+            }
+          } else if (needsToCrossRiver && Math.abs(troop.position.y - 50) < 8) {
+            // Already near river, find closest bridge entry point
+            const nearestBridge = BRIDGES.reduce((closest, bridge) => {
+              const distToBridge = Math.abs(bridge.x - troop.position.x);
+              const distToClosest = Math.abs(closest.x - troop.position.x);
+              return distToBridge < distToClosest ? bridge : closest;
+            });
+
+            // Move horizontally to align with bridge if not already aligned
+            if (Math.abs(troop.position.x - nearestBridge.x) > 2) {
+              newX = troop.position.x + (nearestBridge.x - troop.position.x) * 0.5;
+              newY = troop.position.y; // Stay at current Y until aligned
+            } else {
+              // Aligned with bridge, proceed with normal movement
+              newX = troop.position.x + moveX;
+              newY = troop.position.y + moveY;
             }
           }
 
-          // Don't allow placement in river
+          // Final check: don't allow movement into invalid river positions
           if (isInRiver(newX, newY) && !canCrossRiver(newX, newY)) {
             return { ...troop, target }; // Stay in place if can't move
           }
@@ -693,7 +718,7 @@ export const useGameState = () => {
         damage: card.damage || 50,
         speed: card.speed || 1,
         range: card.range || 1,
-        visionRadius: 6,
+        visionRadius: 12,
         icon: card.icon,
         target: null,
         lastAttackTime: 0,
