@@ -220,19 +220,14 @@ export const useGameState = () => {
           const enemyDestroyedTowers = 3 - prev.enemyTowers.filter(t => t.health > 0).length;
           
           // Determine winner based on tower count
-          let gameStatus: 'playing' | 'victory' | 'defeat' = 'playing';
           if (enemyDestroyedTowers > playerDestroyedTowers) {
-            gameStatus = 'victory';
+            return { ...prev, timeRemaining: 0, gameStatus: 'victory' };
           } else if (playerDestroyedTowers > enemyDestroyedTowers) {
-            gameStatus = 'defeat';
+            return { ...prev, timeRemaining: 0, gameStatus: 'defeat' };
           } else {
-            // Tie - check remaining tower health
-            const playerTotalHealth = prev.playerTowers.reduce((sum, t) => sum + t.health, 0);
-            const enemyTotalHealth = prev.enemyTowers.reduce((sum, t) => sum + t.health, 0);
-            gameStatus = enemyTotalHealth > playerTotalHealth ? 'defeat' : 'victory';
+            // Tie - enter overtime
+            return { ...prev, timeRemaining: 0, gameStatus: 'overtime', overtimeRemaining: 60 };
           }
-          
-          return { ...prev, timeRemaining: 0, gameStatus };
         }
         
         return { ...prev, timeRemaining: newTime };
@@ -241,6 +236,31 @@ export const useGameState = () => {
 
     return () => clearInterval(interval);
   }, [gameState.gameStatus, gameState.timeRemaining]);
+
+  // Overtime countdown
+  useEffect(() => {
+    if (gameState.gameStatus !== 'overtime' || gameState.overtimeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        const newTime = prev.overtimeRemaining - 1;
+        
+        // Check if overtime is up
+        if (newTime <= 0) {
+          // Find tower with lowest health to determine winner
+          const playerLowestHealth = Math.min(...prev.playerTowers.filter(t => t.health > 0).map(t => t.health));
+          const enemyLowestHealth = Math.min(...prev.enemyTowers.filter(t => t.health > 0).map(t => t.health));
+          
+          const gameStatus = playerLowestHealth < enemyLowestHealth ? 'defeat' : 'victory';
+          return { ...prev, overtimeRemaining: 0, gameStatus };
+        }
+        
+        return { ...prev, overtimeRemaining: newTime };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.gameStatus, gameState.overtimeRemaining]);
 
   // Elixir regeneration for both players
   useEffect(() => {
@@ -647,6 +667,9 @@ export const useGameState = () => {
     return () => clearInterval(interval);
   }, [gameState.troops.length, gameState.gameStatus]);
 
+  // Store previous tower counts for overtime detection
+  const [prevTowerCounts, setPrevTowerCounts] = useState({ player: 3, enemy: 3 });
+
   // Check for game end conditions
   useEffect(() => {
     const playerKingTower = gameState.playerTowers.find(t => t.type === 'king');
@@ -661,16 +684,16 @@ export const useGameState = () => {
       const playerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
       const enemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
       
-      const prevPlayerActiveTowers = gameState.playerTowers.length;
-      const prevEnemyActiveTowers = gameState.enemyTowers.length;
-      
-      if (playerActiveTowers < prevPlayerActiveTowers) {
+      if (playerActiveTowers < prevTowerCounts.player) {
         setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
-      } else if (enemyActiveTowers < prevEnemyActiveTowers) {
+      } else if (enemyActiveTowers < prevTowerCounts.enemy) {
         setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
       }
+      
+      // Update tower counts
+      setPrevTowerCounts({ player: playerActiveTowers, enemy: enemyActiveTowers });
     }
-  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus]);
+  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus, prevTowerCounts]);
 
   // Clean up expired spell effects
   useEffect(() => {

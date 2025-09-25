@@ -31,10 +31,15 @@ const Index = () => {
 
             {/* Timer */}
             <div className="text-center">
-              <div className="text-lg font-bold text-primary">
-                {Math.floor(gameState.timeRemaining / 60)}:{(gameState.timeRemaining % 60).toString().padStart(2, '0')}
+              <div className={`text-lg font-bold ${gameState.gameStatus === 'overtime' ? 'text-destructive animate-pulse' : 'text-primary'}`}>
+                {gameState.gameStatus === 'overtime' 
+                  ? `${Math.floor(gameState.overtimeRemaining / 60)}:${(gameState.overtimeRemaining % 60).toString().padStart(2, '0')}`
+                  : `${Math.floor(gameState.timeRemaining / 60)}:${(gameState.timeRemaining % 60).toString().padStart(2, '0')}`
+                }
               </div>
-              <div className="text-sm text-muted-foreground">Time Remaining</div>
+              <div className="text-sm text-muted-foreground">
+                {gameState.gameStatus === 'overtime' ? 'OVERTIME' : 'Time Remaining'}
+              </div>
             </div>
 
             {/* Card Hand */}
@@ -49,7 +54,7 @@ const Index = () => {
       </main>
 
       {/* Game Status */}
-      {gameState.gameStatus !== 'playing' && (
+      {gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime' && (
         <div className="absolute inset-0 bg-background/80 backdrop-blur flex items-center justify-center">
           <div className="bg-card p-8 rounded-lg shadow-card border border-border text-center">
             <h2 className="text-4xl font-bold mb-4 text-primary">
