@@ -219,20 +219,15 @@ export const useGameState = () => {
           const playerDestroyedTowers = 3 - prev.playerTowers.filter(t => t.health > 0).length;
           const enemyDestroyedTowers = 3 - prev.enemyTowers.filter(t => t.health > 0).length;
           
-          // Determine winner based on tower count
-          let gameStatus: 'playing' | 'victory' | 'defeat' = 'playing';
+          // If tower counts are different, determine winner immediately
           if (enemyDestroyedTowers > playerDestroyedTowers) {
-            gameStatus = 'victory';
+            return { ...prev, timeRemaining: 0, gameStatus: 'victory' };
           } else if (playerDestroyedTowers > enemyDestroyedTowers) {
-            gameStatus = 'defeat';
+            return { ...prev, timeRemaining: 0, gameStatus: 'defeat' };
           } else {
-            // Tie - check remaining tower health
-            const playerTotalHealth = prev.playerTowers.reduce((sum, t) => sum + t.health, 0);
-            const enemyTotalHealth = prev.enemyTowers.reduce((sum, t) => sum + t.health, 0);
-            gameStatus = enemyTotalHealth > playerTotalHealth ? 'defeat' : 'victory';
+            // Equal tower count - enter overtime
+            return { ...prev, timeRemaining: 0, gameStatus: 'overtime' };
           }
-          
-          return { ...prev, timeRemaining: 0, gameStatus };
         }
         
         return { ...prev, timeRemaining: newTime };
@@ -241,6 +236,31 @@ export const useGameState = () => {
 
     return () => clearInterval(interval);
   }, [gameState.gameStatus, gameState.timeRemaining]);
+
+  // Overtime countdown
+  useEffect(() => {
+    if (gameState.gameStatus !== 'overtime' || gameState.overtimeRemaining <= 0) return;
+
+    const interval = setInterval(() => {
+      setGameState(prev => {
+        const newOvertime = prev.overtimeRemaining - 1;
+        
+        // Check if overtime expired
+        if (newOvertime <= 0) {
+          // Find the tower with lowest health to determine loser
+          const playerLowestHealth = Math.min(...prev.playerTowers.filter(t => t.health > 0).map(t => t.health));
+          const enemyLowestHealth = Math.min(...prev.enemyTowers.filter(t => t.health > 0).map(t => t.health));
+          
+          const gameStatus = playerLowestHealth < enemyLowestHealth ? 'defeat' : 'victory';
+          return { ...prev, overtimeRemaining: 0, gameStatus };
+        }
+        
+        return { ...prev, overtimeRemaining: newOvertime };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [gameState.gameStatus, gameState.overtimeRemaining]);
 
   // Elixir regeneration for both players
   useEffect(() => {
@@ -380,10 +400,28 @@ export const useGameState = () => {
         let updatedPlayerTowers = [...prev.playerTowers];
         let updatedEnemyTowers = [...prev.enemyTowers];
 
-        // Princess towers attack troops in range
-        const allTowers = [...prev.playerTowers, ...prev.enemyTowers].filter(t => t.health > 0 && t.type === 'princess');
+        // Princess towers attack troops in range, King towers attack when princess tower destroyed
+        const playerPrincessTowers = prev.playerTowers.filter(t => t.health > 0 && t.type === 'princess');
+        const enemyPrincessTowers = prev.enemyTowers.filter(t => t.health > 0 && t.type === 'princess');
         
-        allTowers.forEach(tower => {
+        // Get attacking towers (princess + king if princess destroyed)
+        const attackingTowers = [
+          ...playerPrincessTowers,
+          ...enemyPrincessTowers
+        ];
+        
+        // Add king towers if they can attack (when at least one princess tower is destroyed)
+        const playerKingTower = prev.playerTowers.find(t => t.health > 0 && t.type === 'king');
+        const enemyKingTower = prev.enemyTowers.find(t => t.health > 0 && t.type === 'king');
+        
+        if (playerKingTower && playerPrincessTowers.length < 2) {
+          attackingTowers.push(playerKingTower);
+        }
+        if (enemyKingTower && enemyPrincessTowers.length < 2) {
+          attackingTowers.push(enemyKingTower);
+        }
+        
+        attackingTowers.forEach(tower => {
           const enemyTroops = prev.troops.filter(t => 
             t.team !== tower.team && 
             t.health > 0 && 
@@ -688,7 +726,7 @@ export const useGameState = () => {
 
   const selectCard = useCallback((cardIndex: number) => {
     const card = gameState.hand[cardIndex];
-    if (!card || gameState.elixir < card.cost || gameState.gameStatus !== 'playing') return;
+    if (!card || gameState.elixir < card.cost || (gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime')) return;
 
     setGameState(prev => ({
       ...prev,
