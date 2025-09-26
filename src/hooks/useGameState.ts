@@ -219,14 +219,14 @@ export const useGameState = () => {
           const playerDestroyedTowers = 3 - prev.playerTowers.filter(t => t.health > 0).length;
           const enemyDestroyedTowers = 3 - prev.enemyTowers.filter(t => t.health > 0).length;
           
-          // Determine winner based on tower count
+          // If tower counts are different, determine winner immediately
           if (enemyDestroyedTowers > playerDestroyedTowers) {
             return { ...prev, timeRemaining: 0, gameStatus: 'victory' };
           } else if (playerDestroyedTowers > enemyDestroyedTowers) {
             return { ...prev, timeRemaining: 0, gameStatus: 'defeat' };
           } else {
-            // Tie - enter overtime
-            return { ...prev, timeRemaining: 0, gameStatus: 'overtime', overtimeRemaining: 60 };
+            // Equal tower count - enter overtime
+            return { ...prev, timeRemaining: 0, gameStatus: 'overtime' };
           }
         }
         
@@ -243,11 +243,11 @@ export const useGameState = () => {
 
     const interval = setInterval(() => {
       setGameState(prev => {
-        const newTime = prev.overtimeRemaining - 1;
+        const newOvertime = prev.overtimeRemaining - 1;
         
-        // Check if overtime is up
-        if (newTime <= 0) {
-          // Find tower with lowest health to determine winner
+        // Check if overtime expired
+        if (newOvertime <= 0) {
+          // Find the tower with lowest health to determine loser
           const playerLowestHealth = Math.min(...prev.playerTowers.filter(t => t.health > 0).map(t => t.health));
           const enemyLowestHealth = Math.min(...prev.enemyTowers.filter(t => t.health > 0).map(t => t.health));
           
@@ -255,7 +255,7 @@ export const useGameState = () => {
           return { ...prev, overtimeRemaining: 0, gameStatus };
         }
         
-        return { ...prev, overtimeRemaining: newTime };
+        return { ...prev, overtimeRemaining: newOvertime };
       });
     }, 1000);
 
@@ -400,10 +400,28 @@ export const useGameState = () => {
         let updatedPlayerTowers = [...prev.playerTowers];
         let updatedEnemyTowers = [...prev.enemyTowers];
 
-        // Princess towers attack troops in range
-        const allTowers = [...prev.playerTowers, ...prev.enemyTowers].filter(t => t.health > 0 && t.type === 'princess');
+        // Princess towers attack troops in range, King towers attack when princess tower destroyed
+        const playerPrincessTowers = prev.playerTowers.filter(t => t.health > 0 && t.type === 'princess');
+        const enemyPrincessTowers = prev.enemyTowers.filter(t => t.health > 0 && t.type === 'princess');
         
-        allTowers.forEach(tower => {
+        // Get attacking towers (princess + king if princess destroyed)
+        const attackingTowers = [
+          ...playerPrincessTowers,
+          ...enemyPrincessTowers
+        ];
+        
+        // Add king towers if they can attack (when at least one princess tower is destroyed)
+        const playerKingTower = prev.playerTowers.find(t => t.health > 0 && t.type === 'king');
+        const enemyKingTower = prev.enemyTowers.find(t => t.health > 0 && t.type === 'king');
+        
+        if (playerKingTower && playerPrincessTowers.length < 2) {
+          attackingTowers.push(playerKingTower);
+        }
+        if (enemyKingTower && enemyPrincessTowers.length < 2) {
+          attackingTowers.push(enemyKingTower);
+        }
+        
+        attackingTowers.forEach(tower => {
           const enemyTroops = prev.troops.filter(t => 
             t.team !== tower.team && 
             t.health > 0 && 
@@ -667,9 +685,6 @@ export const useGameState = () => {
     return () => clearInterval(interval);
   }, [gameState.troops.length, gameState.gameStatus]);
 
-  // Store previous tower counts for overtime detection
-  const [prevTowerCounts, setPrevTowerCounts] = useState({ player: 3, enemy: 3 });
-
   // Check for game end conditions
   useEffect(() => {
     const playerKingTower = gameState.playerTowers.find(t => t.type === 'king');
@@ -684,16 +699,16 @@ export const useGameState = () => {
       const playerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
       const enemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
       
-      if (playerActiveTowers < prevTowerCounts.player) {
+      const prevPlayerActiveTowers = gameState.playerTowers.length;
+      const prevEnemyActiveTowers = gameState.enemyTowers.length;
+      
+      if (playerActiveTowers < prevPlayerActiveTowers) {
         setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
-      } else if (enemyActiveTowers < prevTowerCounts.enemy) {
+      } else if (enemyActiveTowers < prevEnemyActiveTowers) {
         setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
       }
-      
-      // Update tower counts
-      setPrevTowerCounts({ player: playerActiveTowers, enemy: enemyActiveTowers });
     }
-  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus, prevTowerCounts]);
+  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus]);
 
   // Clean up expired spell effects
   useEffect(() => {
@@ -711,7 +726,7 @@ export const useGameState = () => {
 
   const selectCard = useCallback((cardIndex: number) => {
     const card = gameState.hand[cardIndex];
-    if (!card || gameState.elixir < card.cost || gameState.gameStatus !== 'playing') return;
+    if (!card || gameState.elixir < card.cost || (gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime')) return;
 
     setGameState(prev => ({
       ...prev,
