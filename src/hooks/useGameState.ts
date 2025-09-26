@@ -225,9 +225,15 @@ export const useGameState = () => {
             return { ...prev, timeRemaining: 0, gameStatus: 'victory' };
           } else if (playerDestroyedTowers > enemyDestroyedTowers) {
             return { ...prev, timeRemaining: 0, gameStatus: 'defeat' };
-          } else {
-            // Equal tower count - enter overtime
+          } else if (playerDestroyedTowers === 0 && enemyDestroyedTowers === 0) {
+            // No towers destroyed on either side - enter overtime
             return { ...prev, timeRemaining: 0, gameStatus: 'overtime', overtimeRemaining: 60 };
+          } else {
+            // Equal destroyed towers but not zero - determine by total tower health
+            const playerTotalHealth = prev.playerTowers.reduce((sum, t) => sum + t.health, 0);
+            const enemyTotalHealth = prev.enemyTowers.reduce((sum, t) => sum + t.health, 0);
+            const gameStatus = playerTotalHealth < enemyTotalHealth ? 'defeat' : 'victory';
+            return { ...prev, timeRemaining: 0, gameStatus };
           }
         }
         
