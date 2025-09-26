@@ -227,7 +227,7 @@ export const useGameState = () => {
             return { ...prev, timeRemaining: 0, gameStatus: 'defeat' };
           } else {
             // Equal tower count - enter overtime
-            return { ...prev, timeRemaining: 0, gameStatus: 'overtime' };
+            return { ...prev, timeRemaining: 0, gameStatus: 'overtime', overtimeRemaining: 60 };
           }
         }
         
@@ -693,6 +693,9 @@ export const useGameState = () => {
 
         // Handle combat damage in a separate pass to avoid mutation issues
         let finalTroops = [...updatedTroops];
+        // Create new tower arrays so effects detect changes (no in-place mutation)
+        let updatedPlayerTowers = [...prev.playerTowers];
+        let updatedEnemyTowers = [...prev.enemyTowers];
         
         updatedTroops.forEach(attackingTroop => {
           if (attackingTroop.state === 'attacking' && attackingTroop.target && currentTime - attackingTroop.lastAttackTime >= 1000) {
@@ -708,11 +711,11 @@ export const useGameState = () => {
             } else {
               // Target is a tower
               if (attackingTroop.team === 'player') {
-                prev.enemyTowers = prev.enemyTowers.map(t => 
+                updatedEnemyTowers = updatedEnemyTowers.map(t => 
                   t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
                 );
               } else {
-                prev.playerTowers = prev.playerTowers.map(t => 
+                updatedPlayerTowers = updatedPlayerTowers.map(t => 
                   t.id === target.id ? { ...t, health: Math.max(0, t.health - damage) } : t
                 );
               }
@@ -723,7 +726,7 @@ export const useGameState = () => {
         // Filter out dead troops
         const aliveTroops = finalTroops.filter(troop => troop.health > 0);
 
-        return { ...prev, troops: aliveTroops };
+        return { ...prev, troops: aliveTroops, playerTowers: updatedPlayerTowers, enemyTowers: updatedEnemyTowers };
       });
     }, 100);
 
