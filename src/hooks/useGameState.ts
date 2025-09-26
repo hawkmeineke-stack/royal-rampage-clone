@@ -267,14 +267,16 @@ export const useGameState = () => {
   useEffect(() => {
     if (gameState.gameStatus !== 'playing' && gameState.gameStatus !== 'overtime') return;
 
-    const isOvertime = gameState.gameStatus === 'overtime';
+    // Normal speed: 2.8 seconds, Overtime speed: 1.4 seconds (double speed)
+    const elixirInterval = gameState.gameStatus === 'overtime' ? 1400 : 2800;
+    
     const interval = setInterval(() => {
       setGameState(prev => ({
         ...prev,
         elixir: Math.min(10, prev.elixir + 1),
         enemyElixir: Math.min(10, prev.enemyElixir + 1)
       }));
-    }, isOvertime ? 1400 : 2800); // Faster elixir in overtime
+    }, elixirInterval);
 
     return () => clearInterval(interval);
   }, [gameState.gameStatus]);
