@@ -412,14 +412,14 @@ export const useGameState = () => {
           ...enemyPrincessTowers
         ];
         
-        // Add king towers if they can attack (when princess tower destroyed or king has been damaged)
+        // Add king towers if they can attack (only when a princess tower is destroyed)
         const playerKingTower = prev.playerTowers.find(t => t.health > 0 && t.type === 'king');
         const enemyKingTower = prev.enemyTowers.find(t => t.health > 0 && t.type === 'king');
         
-        if (playerKingTower && (playerPrincessTowers.length < 2 || playerKingTower.health < playerKingTower.maxHealth)) {
+        if (playerKingTower && playerPrincessTowers.length < 2) {
           attackingTowers.push(playerKingTower);
         }
-        if (enemyKingTower && (enemyPrincessTowers.length < 2 || enemyKingTower.health < enemyKingTower.maxHealth)) {
+        if (enemyKingTower && enemyPrincessTowers.length < 2) {
           attackingTowers.push(enemyKingTower);
         }
         
