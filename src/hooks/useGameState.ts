@@ -728,6 +728,21 @@ export const useGameState = () => {
     return () => clearInterval(interval);
   }, [gameState.troops.length, gameState.gameStatus]);
 
+  // Track tower counts when overtime starts
+  const [overtimeTowerCounts, setOvertimeTowerCounts] = useState<{playerCount: number, enemyCount: number} | null>(null);
+
+  // Set initial tower counts when overtime starts
+  useEffect(() => {
+    if (gameState.gameStatus === 'overtime' && overtimeTowerCounts === null) {
+      setOvertimeTowerCounts({
+        playerCount: gameState.playerTowers.filter(t => t.health > 0).length,
+        enemyCount: gameState.enemyTowers.filter(t => t.health > 0).length
+      });
+    } else if (gameState.gameStatus !== 'overtime' && overtimeTowerCounts !== null) {
+      setOvertimeTowerCounts(null);
+    }
+  }, [gameState.gameStatus]);
+
   // Check for game end conditions
   useEffect(() => {
     const playerKingTower = gameState.playerTowers.find(t => t.type === 'king');
@@ -737,21 +752,18 @@ export const useGameState = () => {
       setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
     } else if (enemyKingTower?.health <= 0) {
       setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
-    } else if (gameState.gameStatus === 'overtime') {
-      // In overtime, any tower destruction wins the game
-      const playerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
-      const enemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
+    } else if (gameState.gameStatus === 'overtime' && overtimeTowerCounts) {
+      // In overtime, any tower destruction wins the game immediately
+      const currentPlayerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
+      const currentEnemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
       
-      const prevPlayerActiveTowers = gameState.playerTowers.length;
-      const prevEnemyActiveTowers = gameState.enemyTowers.length;
-      
-      if (playerActiveTowers < prevPlayerActiveTowers) {
+      if (currentPlayerActiveTowers < overtimeTowerCounts.playerCount) {
         setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
-      } else if (enemyActiveTowers < prevEnemyActiveTowers) {
+      } else if (currentEnemyActiveTowers < overtimeTowerCounts.enemyCount) {
         setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
       }
     }
-  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus]);
+  }, [gameState.playerTowers, gameState.enemyTowers, gameState.gameStatus, overtimeTowerCounts]);
 
   // Clean up expired spell effects
   useEffect(() => {
