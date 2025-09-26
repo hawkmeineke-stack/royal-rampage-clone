@@ -20,6 +20,7 @@ export interface Tower {
   maxHealth: number;
   team: 'player' | 'enemy';
   position: { x: number; y: number };
+  isActivated?: boolean; // For king towers
 }
 
 export interface Troop {
@@ -101,13 +102,13 @@ const canCrossRiver = (x: number, y: number): boolean => {
 
 const createInitialTowers = (): { playerTowers: Tower[], enemyTowers: Tower[] } => {
   const playerTowers: Tower[] = [
-    { id: 'player-king', type: 'king', health: 2000, maxHealth: 2000, team: 'player', position: { x: 50, y: 85 } },
+    { id: 'player-king', type: 'king', health: 2000, maxHealth: 2000, team: 'player', position: { x: 50, y: 85 }, isActivated: false },
     { id: 'player-princess-left', type: 'princess', health: 1000, maxHealth: 1000, team: 'player', position: { x: 25, y: 75 } },
     { id: 'player-princess-right', type: 'princess', health: 1000, maxHealth: 1000, team: 'player', position: { x: 75, y: 75 } },
   ];
 
   const enemyTowers: Tower[] = [
-    { id: 'enemy-king', type: 'king', health: 2000, maxHealth: 2000, team: 'enemy', position: { x: 50, y: 15 } },
+    { id: 'enemy-king', type: 'king', health: 2000, maxHealth: 2000, team: 'enemy', position: { x: 50, y: 15 }, isActivated: false },
     { id: 'enemy-princess-left', type: 'princess', health: 1000, maxHealth: 1000, team: 'enemy', position: { x: 25, y: 25 } },
     { id: 'enemy-princess-right', type: 'princess', health: 1000, maxHealth: 1000, team: 'enemy', position: { x: 75, y: 25 } },
   ];
@@ -339,12 +340,22 @@ export const useGameState = () => {
             troops: [...prev.troops, newTroop],
           };
         } else if (card.type === 'spell') {
-          // Enemy AI uses spells on player troops or towers
-          const targets = [...prev.troops.filter(t => t.team === 'player' && t.health > 0), ...prev.playerTowers.filter(t => t.health > 0)];
+          // Enemy AI uses spells on player troops or towers (avoid player king tower)
+          const playerTroops = prev.troops.filter(t => t.team === 'player' && t.health > 0);
+          const playerTowers = prev.playerTowers.filter(t => t.health > 0 && !(t.type === 'king')); // Exclude king tower
+          const targets = [...playerTroops, ...playerTowers];
           if (targets.length > 0) {
             const target = targets[Math.floor(Math.random() * targets.length)];
             const { x, y } = target.position;
             const damage = card.damage || 0;
+            
+            // Add spell effect for enemy AI
+            const spellEffect: SpellEffect = {
+              id: `enemy-spell-${Date.now()}`,
+              type: card.id as 'fireball' | 'arrows',
+              position: { x, y },
+              startTime: Date.now()
+            };
             
             // Apply spell damage
             const updatedTroops = prev.troops.map(troop => {
@@ -380,6 +391,7 @@ export const useGameState = () => {
               enemyDeck: remainingDeck,
               troops: updatedTroops,
               playerTowers: updatedPlayerTowers,
+              spellEffects: [...prev.spellEffects, spellEffect],
             };
           }
         }
@@ -399,27 +411,44 @@ export const useGameState = () => {
       setGameState(prev => {
         const currentTime = Date.now();
         let updatedTroops = [...prev.troops];
-        let updatedPlayerTowers = [...prev.playerTowers];
-        let updatedEnemyTowers = [...prev.enemyTowers];
 
-        // Princess towers attack troops in range, King towers attack when princess tower destroyed
-        const playerPrincessTowers = prev.playerTowers.filter(t => t.health > 0 && t.type === 'princess');
-        const enemyPrincessTowers = prev.enemyTowers.filter(t => t.health > 0 && t.type === 'princess');
+        // Update king tower activation status
+        const updatedPlayerTowers = prev.playerTowers.map(tower => {
+          if (tower.type === 'king') {
+            const princessTowersAlive = prev.playerTowers.filter(t => t.health > 0 && t.type === 'princess').length;
+            const isActivated = princessTowersAlive < 2 || tower.health < tower.maxHealth;
+            return { ...tower, isActivated };
+          }
+          return tower;
+        });
         
-        // Get attacking towers (princess + king if princess destroyed)
+        const updatedEnemyTowers = prev.enemyTowers.map(tower => {
+          if (tower.type === 'king') {
+            const princessTowersAlive = prev.enemyTowers.filter(t => t.health > 0 && t.type === 'princess').length;
+            const isActivated = princessTowersAlive < 2 || tower.health < tower.maxHealth;
+            return { ...tower, isActivated };
+          }
+          return tower;
+        });
+
+        // Princess towers attack troops in range, King towers attack when activated
+        const playerPrincessTowers = updatedPlayerTowers.filter(t => t.health > 0 && t.type === 'princess');
+        const enemyPrincessTowers = updatedEnemyTowers.filter(t => t.health > 0 && t.type === 'princess');
+        
+        // Get attacking towers (princess + activated king towers)
         const attackingTowers = [
           ...playerPrincessTowers,
           ...enemyPrincessTowers
         ];
         
-        // Add king towers if they can attack (only when a princess tower is destroyed)
-        const playerKingTower = prev.playerTowers.find(t => t.health > 0 && t.type === 'king');
-        const enemyKingTower = prev.enemyTowers.find(t => t.health > 0 && t.type === 'king');
+        // Add king towers if they are activated
+        const playerKingTower = updatedPlayerTowers.find(t => t.health > 0 && t.type === 'king');
+        const enemyKingTower = updatedEnemyTowers.find(t => t.health > 0 && t.type === 'king');
         
-        if (playerKingTower && playerPrincessTowers.length < 2) {
+        if (playerKingTower && playerKingTower.isActivated) {
           attackingTowers.push(playerKingTower);
         }
-        if (enemyKingTower && enemyPrincessTowers.length < 2) {
+        if (enemyKingTower && enemyKingTower.isActivated) {
           attackingTowers.push(enemyKingTower);
         }
         
@@ -439,7 +468,19 @@ export const useGameState = () => {
               Math.pow(troop.position.x - tower.position.x, 2) + 
               Math.pow(troop.position.y - tower.position.y, 2)
             );
-            if (distance <= 12 && distance < closestDistance) { // Tower range
+            
+            // King towers have extended range to hit troops attacking princess towers
+            let towerRange = 12; // Default range for princess towers
+            if (tower.type === 'king' && tower.isActivated) {
+              towerRange = 18; // Extended range for king towers
+              
+              // King towers cannot hit ranged troops (archers, wizards) unless they're very close
+              if ((troop.cardId === 'archers' || troop.cardId === 'wizard') && distance > 12) {
+                return; // Skip ranged troops beyond normal range
+              }
+            }
+            
+            if (distance <= towerRange && distance < closestDistance) {
               closestDistance = distance;
               closestTroop = troop;
             }
@@ -847,16 +888,22 @@ export const useGameState = () => {
     const { playerTowers, enemyTowers } = createInitialTowers();
     const playerDeck = shuffleDeck([...CARDS, ...CARDS]);
     const enemyDeck = shuffleDeck([...CARDS, ...CARDS]);
+
+    const playerHandData = createUniqueHand(playerDeck);
+    const { card: playerNextCard, remainingDeck: playerFinalDeck } = getNextUniqueCard(playerHandData.remainingDeck, playerHandData.hand);
     
+    const enemyHandData = createUniqueHand(enemyDeck);
+    const { card: enemyNextCard, remainingDeck: enemyFinalDeck } = getNextUniqueCard(enemyHandData.remainingDeck, enemyHandData.hand);
+
     setGameState({
       elixir: 5,
       enemyElixir: 5,
-      hand: playerDeck.slice(0, 4),
-      nextCard: playerDeck[4],
-      deck: playerDeck.slice(5),
-      enemyHand: enemyDeck.slice(0, 4),
-      enemyNextCard: enemyDeck[4],
-      enemyDeck: enemyDeck.slice(5),
+      hand: playerHandData.hand,
+      nextCard: playerNextCard || CARDS[0],
+      deck: playerFinalDeck,
+      enemyHand: enemyHandData.hand,
+      enemyNextCard: enemyNextCard || CARDS[0],
+      enemyDeck: enemyFinalDeck,
       playerTowers,
       enemyTowers,
       troops: [],
