@@ -358,7 +358,9 @@ export const useGameState = () => {
             const updatedPlayerTowers = prev.playerTowers.map(tower => {
               const distance = Math.sqrt(Math.pow(tower.position.x - x, 2) + Math.pow(tower.position.y - y, 2));
               if (distance <= 8) {
-                return { ...tower, health: Math.max(0, tower.health - damage) };
+                // Reduce spell damage to towers
+                const towerDamage = card.id === 'fireball' ? 90 : card.id === 'arrows' ? 50 : damage;
+                return { ...tower, health: Math.max(0, tower.health - towerDamage) };
               }
               return tower;
             });
@@ -410,14 +412,14 @@ export const useGameState = () => {
           ...enemyPrincessTowers
         ];
         
-        // Add king towers if they can attack (when at least one princess tower is destroyed)
+        // Add king towers if they can attack (when princess tower destroyed or king has been damaged)
         const playerKingTower = prev.playerTowers.find(t => t.health > 0 && t.type === 'king');
         const enemyKingTower = prev.enemyTowers.find(t => t.health > 0 && t.type === 'king');
         
-        if (playerKingTower && playerPrincessTowers.length < 2) {
+        if (playerKingTower && (playerPrincessTowers.length < 2 || playerKingTower.health < playerKingTower.maxHealth)) {
           attackingTowers.push(playerKingTower);
         }
-        if (enemyKingTower && enemyPrincessTowers.length < 2) {
+        if (enemyKingTower && (enemyPrincessTowers.length < 2 || enemyKingTower.health < enemyKingTower.maxHealth)) {
           attackingTowers.push(enemyKingTower);
         }
         
@@ -807,7 +809,9 @@ export const useGameState = () => {
         const updatedEnemyTowers = prev.enemyTowers.map(tower => {
           const distance = Math.sqrt(Math.pow(tower.position.x - x, 2) + Math.pow(tower.position.y - y, 2));
           if (distance <= 8) {
-            return { ...tower, health: Math.max(0, tower.health - damage) };
+            // Reduce spell damage to towers
+            const towerDamage = card.id === 'fireball' ? 90 : card.id === 'arrows' ? 50 : damage;
+            return { ...tower, health: Math.max(0, tower.health - towerDamage) };
           }
           return tower;
         });
