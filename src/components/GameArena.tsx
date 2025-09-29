@@ -20,7 +20,7 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
 
   return (
     <div 
-      className="relative w-full max-w-2xl aspect-[4/3] bg-gradient-arena rounded-lg border-4 border-arena-stone shadow-tower overflow-hidden cursor-crosshair"
+      className="relative w-full max-w-2xl aspect-[3/4] bg-gradient-arena rounded-lg border-4 border-arena-stone shadow-tower overflow-hidden cursor-crosshair"
       onClick={handleArenaClick}
     >
       {/* River with bridges */}
