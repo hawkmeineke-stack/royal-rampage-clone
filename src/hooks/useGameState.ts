@@ -749,16 +749,21 @@ export const useGameState = () => {
   }, [gameState.gameStatus]);
 
   // Check for game end conditions
+  // OVERTIME ONLY ENDS WHEN: (1) timer expires, OR (2) any tower is destroyed
   useEffect(() => {
+    // Only check victory/defeat conditions if not already ended
+    if (gameState.gameStatus === 'victory' || gameState.gameStatus === 'defeat') return;
+
     const playerKingTower = gameState.playerTowers.find(t => t.type === 'king');
     const enemyKingTower = gameState.enemyTowers.find(t => t.type === 'king');
 
+    // King tower destruction always ends the game (both normal and overtime)
     if (playerKingTower?.health <= 0) {
       setGameState(prev => ({ ...prev, gameStatus: 'defeat' }));
     } else if (enemyKingTower?.health <= 0) {
       setGameState(prev => ({ ...prev, gameStatus: 'victory' }));
     } else if (gameState.gameStatus === 'overtime' && overtimeTowerCounts) {
-      // In overtime, any tower destruction wins the game immediately
+      // In overtime, ANY tower destruction wins immediately (instant death)
       const currentPlayerActiveTowers = gameState.playerTowers.filter(t => t.health > 0).length;
       const currentEnemyActiveTowers = gameState.enemyTowers.filter(t => t.health > 0).length;
       
