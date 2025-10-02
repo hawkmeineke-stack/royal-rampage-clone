@@ -290,7 +290,7 @@ export const useGameState = () => {
         // Only place cards if enemy has enough elixir and there are affordable cards
         const affordableCards = prev.enemyHand
           .map((card, index) => ({ card, index }))
-          .filter(({ card }) => card.cost <= prev.enemyElixir);
+          .filter(({ card }) => card !== null && card.cost <= prev.enemyElixir);
 
         if (affordableCards.length === 0) return prev;
 
