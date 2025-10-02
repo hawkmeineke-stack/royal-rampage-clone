@@ -53,34 +53,6 @@ export const GameArena = ({ gameState }: GameArenaProps) => {
                   River - Use Bridges
                 </div>
               </div>
-              
-              {/* Special placement zone when one princess tower is destroyed */}
-              {(() => {
-                const leftPrincessAlive = gameState.playerTowers.find(t => t.id === 'player-princess-left')?.health > 0;
-                const rightPrincessAlive = gameState.playerTowers.find(t => t.id === 'player-princess-right')?.health > 0;
-                const onlyOneTowerDestroyed = (leftPrincessAlive && !rightPrincessAlive) || (!leftPrincessAlive && rightPrincessAlive);
-                
-                if (onlyOneTowerDestroyed) {
-                  // Show special zone in the middle: from halfway (50%) to king tower (85%)
-                  // Square zone centered horizontally
-                  return (
-                    <div 
-                      className="absolute bg-team-blue/20 border-2 border-team-blue/50 pointer-events-none"
-                      style={{
-                        left: '40%',
-                        top: '50%',
-                        width: '20%',
-                        height: '35%'
-                      }}
-                    >
-                      <div className="absolute top-2 left-1/2 transform -translate-x-1/2 text-xs text-team-blue font-bold whitespace-nowrap">
-                        Extended Zone
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
             </>
           )}
           {/* Show full map for spell placement */}
