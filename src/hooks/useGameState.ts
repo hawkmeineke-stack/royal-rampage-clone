@@ -153,7 +153,7 @@ const createUniqueHand = (deck: Card[], handSize: number = 4): { hand: Card[], r
 };
 
 const getNextUniqueCard = (deck: Card[], currentHand: Card[]): { card: Card | null, remainingDeck: Card[] } => {
-  const usedCardIds = new Set(currentHand.map(c => c.id));
+  const usedCardIds = new Set(currentHand.filter(c => c !== null).map(c => c.id));
   const remainingDeck = [...deck];
   
   const cardIndex = remainingDeck.findIndex(card => !usedCardIds.has(card.id));
