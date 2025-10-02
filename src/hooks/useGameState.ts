@@ -329,9 +329,8 @@ export const useGameState = () => {
           // Move next card to hand
           newEnemyHand[index] = prev.enemyNextCard;
           
-          // Get new next card from deck
-          const nextCard = newEnemyDeck.length > 0 ? newEnemyDeck[0] : CARDS[Math.floor(Math.random() * CARDS.length)];
-          const remainingDeck = newEnemyDeck.length > 0 ? newEnemyDeck.slice(1) : [];
+          // Get new next card that's not already in updated hand
+          const { card: nextCard, remainingDeck } = getNextUniqueCard(newEnemyDeck, newEnemyHand);
 
           return {
             ...prev,
@@ -382,8 +381,7 @@ export const useGameState = () => {
             const newEnemyDeck = [...prev.enemyDeck];
             
             newEnemyHand[index] = prev.enemyNextCard;
-            const nextCard = newEnemyDeck.length > 0 ? newEnemyDeck[0] : CARDS[Math.floor(Math.random() * CARDS.length)];
-            const remainingDeck = newEnemyDeck.length > 0 ? newEnemyDeck.slice(1) : [];
+            const { card: nextCard, remainingDeck } = getNextUniqueCard(newEnemyDeck, newEnemyHand);
 
             return {
               ...prev,
