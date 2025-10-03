@@ -152,8 +152,8 @@ const createUniqueHand = (deck: Card[], handSize: number = 4): { hand: Card[], r
   return { hand, remainingDeck };
 };
 
-const getNextUniqueCard = (deck: Card[], currentHand: Card[]): { card: Card | null, remainingDeck: Card[] } => {
-  const usedCardIds = new Set(currentHand.filter(c => c !== null).map(c => c.id));
+const getNextUniqueCard = (deck: Card[], currentHand: (Card | null)[]): { card: Card | null, remainingDeck: Card[] } => {
+  const usedCardIds = new Set(currentHand.filter(c => c !== null).map(c => c!.id));
   const remainingDeck = [...deck];
   
   const cardIndex = remainingDeck.findIndex(card => !usedCardIds.has(card.id));
@@ -164,11 +164,16 @@ const getNextUniqueCard = (deck: Card[], currentHand: Card[]): { card: Card | nu
     return { card, remainingDeck };
   }
   
-  // If no unique cards in deck, return any card
-  if (remainingDeck.length > 0) {
-    const card = remainingDeck[0];
-    remainingDeck.splice(0, 1);
-    return { card, remainingDeck };
+  // If no unique cards in deck, reshuffle a new deck and try again
+  if (remainingDeck.length === 0) {
+    const newDeck = shuffleDeck([...CARDS, ...CARDS]);
+    return getNextUniqueCard(newDeck, currentHand);
+  }
+  
+  // As last resort, find any card from CARDS that's not in hand
+  const availableCard = CARDS.find(card => !usedCardIds.has(card.id));
+  if (availableCard) {
+    return { card: availableCard, remainingDeck };
   }
   
   return { card: null, remainingDeck };
@@ -329,14 +334,37 @@ export const useGameState = () => {
           // Move next card to hand
           newEnemyHand[index] = prev.enemyNextCard;
           
+          // Check if nextCard creates a duplicate (safety check)
+          const cardIds = newEnemyHand.filter(c => c !== null).map(c => c!.id);
+          const hasDuplicate = new Set(cardIds).size !== cardIds.length;
+          
           // Get new next card that's not already in updated hand
           const { card: nextCard, remainingDeck } = getNextUniqueCard(newEnemyDeck, newEnemyHand);
+          
+          // If there was a duplicate, fix it by getting another unique card
+          if (hasDuplicate && nextCard) {
+            const duplicateIndex = newEnemyHand.findIndex((c, i) => 
+              c && newEnemyHand.findIndex(c2 => c2 && c2.id === c.id) !== i
+            );
+            if (duplicateIndex !== -1 && nextCard.id !== newEnemyHand[duplicateIndex]?.id) {
+              newEnemyHand[duplicateIndex] = nextCard;
+              const { card: newNextCard, remainingDeck: finalDeck } = getNextUniqueCard(remainingDeck, newEnemyHand);
+              return {
+                ...prev,
+                enemyElixir: prev.enemyElixir - card.cost,
+                enemyHand: newEnemyHand,
+                enemyNextCard: newNextCard || prev.enemyNextCard,
+                enemyDeck: finalDeck,
+                troops: [...prev.troops, newTroop],
+              };
+            }
+          }
 
           return {
             ...prev,
             enemyElixir: prev.enemyElixir - card.cost,
             enemyHand: newEnemyHand,
-            enemyNextCard: nextCard,
+            enemyNextCard: nextCard || prev.enemyNextCard,
             enemyDeck: remainingDeck,
             troops: [...prev.troops, newTroop],
           };
@@ -381,13 +409,39 @@ export const useGameState = () => {
             const newEnemyDeck = [...prev.enemyDeck];
             
             newEnemyHand[index] = prev.enemyNextCard;
+            
+            // Check if nextCard creates a duplicate (safety check)
+            const cardIds = newEnemyHand.filter(c => c !== null).map(c => c!.id);
+            const hasDuplicate = new Set(cardIds).size !== cardIds.length;
+            
             const { card: nextCard, remainingDeck } = getNextUniqueCard(newEnemyDeck, newEnemyHand);
+            
+            // If there was a duplicate, fix it by getting another unique card
+            if (hasDuplicate && nextCard) {
+              const duplicateIndex = newEnemyHand.findIndex((c, i) => 
+                c && newEnemyHand.findIndex(c2 => c2 && c2.id === c.id) !== i
+              );
+              if (duplicateIndex !== -1 && nextCard.id !== newEnemyHand[duplicateIndex]?.id) {
+                newEnemyHand[duplicateIndex] = nextCard;
+                const { card: newNextCard, remainingDeck: finalDeck } = getNextUniqueCard(remainingDeck, newEnemyHand);
+                return {
+                  ...prev,
+                  enemyElixir: prev.enemyElixir - card.cost,
+                  enemyHand: newEnemyHand,
+                  enemyNextCard: newNextCard || prev.enemyNextCard,
+                  enemyDeck: finalDeck,
+                  troops: updatedTroops,
+                  playerTowers: updatedPlayerTowers,
+                  spellEffects: [...prev.spellEffects, spellEffect],
+                };
+              }
+            }
 
             return {
               ...prev,
               enemyElixir: prev.enemyElixir - card.cost,
               enemyHand: newEnemyHand,
-              enemyNextCard: nextCard,
+              enemyNextCard: nextCard || prev.enemyNextCard,
               enemyDeck: remainingDeck,
               troops: updatedTroops,
               playerTowers: updatedPlayerTowers,
@@ -834,18 +888,43 @@ export const useGameState = () => {
 
       setGameState(prev => {
         const newHand = [...prev.hand];
+        const newDeck = [...prev.deck];
         
-        // Replace played card with nextCard
+        // First, tentatively place nextCard in hand
         newHand[gameState.selectedCard!] = prev.nextCard;
         
+        // Check if nextCard creates a duplicate (safety check)
+        const cardIds = newHand.filter(c => c !== null).map(c => c!.id);
+        const hasDuplicate = new Set(cardIds).size !== cardIds.length;
+        
         // Get new next card that's not already in updated hand
-        const { card: nextCard, remainingDeck } = getNextUniqueCard(prev.deck, newHand);
+        const { card: nextCard, remainingDeck } = getNextUniqueCard(newDeck, newHand);
+        
+        // If there was a duplicate, fix it by getting another unique card
+        if (hasDuplicate && nextCard) {
+          const duplicateIndex = newHand.findIndex((c, i) => 
+            c && newHand.findIndex(c2 => c2 && c2.id === c.id) !== i
+          );
+          if (duplicateIndex !== -1 && nextCard.id !== newHand[duplicateIndex]?.id) {
+            newHand[duplicateIndex] = nextCard;
+            const { card: newNextCard, remainingDeck: finalDeck } = getNextUniqueCard(remainingDeck, newHand);
+            return {
+              ...prev,
+              elixir: prev.elixir - card.cost,
+              hand: newHand,
+              nextCard: newNextCard || prev.nextCard,
+              deck: finalDeck,
+              troops: [...prev.troops, newTroop],
+              selectedCard: null,
+            };
+          }
+        }
 
         return {
           ...prev,
           elixir: prev.elixir - card.cost,
           hand: newHand,
-          nextCard: nextCard || CARDS[Math.floor(Math.random() * CARDS.length)],
+          nextCard: nextCard || prev.nextCard,
           deck: remainingDeck,
           troops: [...prev.troops, newTroop],
           selectedCard: null,
@@ -884,18 +963,45 @@ export const useGameState = () => {
         });
 
         const newHand = [...prev.hand];
+        const newDeck = [...prev.deck];
         
-        // Replace played card with nextCard  
+        // First, tentatively place nextCard in hand
         newHand[gameState.selectedCard!] = prev.nextCard;
         
+        // Check if nextCard creates a duplicate (safety check)
+        const cardIds = newHand.filter(c => c !== null).map(c => c!.id);
+        const hasDuplicate = new Set(cardIds).size !== cardIds.length;
+        
         // Get new next card that's not already in updated hand
-        const { card: nextCard, remainingDeck } = getNextUniqueCard(prev.deck, newHand);
+        const { card: nextCard, remainingDeck } = getNextUniqueCard(newDeck, newHand);
+        
+        // If there was a duplicate, fix it by getting another unique card
+        if (hasDuplicate && nextCard) {
+          const duplicateIndex = newHand.findIndex((c, i) => 
+            c && newHand.findIndex(c2 => c2 && c2.id === c.id) !== i
+          );
+          if (duplicateIndex !== -1 && nextCard.id !== newHand[duplicateIndex]?.id) {
+            newHand[duplicateIndex] = nextCard;
+            const { card: newNextCard, remainingDeck: finalDeck } = getNextUniqueCard(remainingDeck, newHand);
+            return {
+              ...prev,
+              elixir: prev.elixir - card.cost,
+              hand: newHand,
+              nextCard: newNextCard || prev.nextCard,
+              deck: finalDeck,
+              troops: updatedTroops,
+              enemyTowers: updatedEnemyTowers,
+              selectedCard: null,
+              spellEffects: [...prev.spellEffects, spellEffect],
+            };
+          }
+        }
 
         return {
           ...prev,
           elixir: prev.elixir - card.cost,
           hand: newHand,
-          nextCard: nextCard || CARDS[Math.floor(Math.random() * CARDS.length)],
+          nextCard: nextCard || prev.nextCard,
           deck: remainingDeck,
           troops: updatedTroops,
           enemyTowers: updatedEnemyTowers,
