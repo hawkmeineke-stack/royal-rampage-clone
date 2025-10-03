@@ -56,14 +56,9 @@ const Index = () => {
       {(gameState.gameStatus === 'victory' || gameState.gameStatus === 'defeat') && (
         <div className="absolute inset-0 bg-background/80 backdrop-blur flex items-center justify-center">
           <div className="bg-card p-8 rounded-lg shadow-card border border-border text-center">
-            <h2 className="text-4xl font-bold mb-4 text-primary">
+            <h2 className="text-4xl font-bold mb-6 text-primary">
               {gameState.gameStatus === 'victory' ? '🎉 Victory!' : '💀 Defeat!'}
             </h2>
-            <p className="text-muted-foreground mb-6">
-              {gameState.gameStatus === 'victory' 
-                ? 'You destroyed the enemy towers!'
-                : 'Your towers were destroyed!'}
-            </p>
             <button
               onClick={gameState.resetGame}
               className="bg-gradient-primary px-6 py-3 rounded-lg text-primary-foreground font-bold hover:opacity-90 transition-opacity"
