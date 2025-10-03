@@ -75,7 +75,7 @@ const CARDS: Card[] = [
   { id: 'wizard', name: 'Wizard', cost: 5, type: 'troop', icon: '🧙', rarity: 'rare', health: 350, damage: 100, speed: 0.9, range: 3 },
   { id: 'skeletons', name: 'Skeletons', cost: 1, type: 'troop', icon: '💀', rarity: 'common', health: 65, damage: 67, speed: 1.2, range: 1 },
   { id: 'arrows', name: 'Arrows', cost: 3, type: 'spell', icon: '➹', rarity: 'common', damage: 150 },
-  { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 400, damage: 110, speed: 0.8, range: 1 },
+  { id: 'barbarians', name: 'Barbarians', cost: 5, type: 'troop', icon: '🪓', rarity: 'common', health: 550, damage: 140, speed: 0.8, range: 1 },
 ];
 
 // Bridge positions where troops can cross the river
