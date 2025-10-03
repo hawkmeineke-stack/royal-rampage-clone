@@ -618,7 +618,8 @@ export const useGameState = () => {
 
           // Attack if in range
           if (distanceToTarget <= troop.range * 3) {
-            if (currentTime - troop.lastAttackTime > 1000) { // Attack every second
+            const attackInterval = troop.cardId === 'giant' ? 1500 : 1200; // Giant: 1.5s, Others: 1.2s
+            if (currentTime - troop.lastAttackTime > attackInterval) {
               // Attack logic will be handled in a separate state update to avoid mutation
               return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime, target };
             }
@@ -696,7 +697,8 @@ export const useGameState = () => {
         let updatedEnemyTowers = [...prev.enemyTowers];
         
         updatedTroops.forEach(attackingTroop => {
-          if (attackingTroop.state === 'attacking' && attackingTroop.target && currentTime - attackingTroop.lastAttackTime >= 1000) {
+          const attackInterval = attackingTroop.cardId === 'giant' ? 1500 : 1200; // Giant: 1.5s, Others: 1.2s
+          if (attackingTroop.state === 'attacking' && attackingTroop.target && currentTime - attackingTroop.lastAttackTime >= attackInterval) {
             const target = attackingTroop.target;
             const damage = attackingTroop.damage;
             
