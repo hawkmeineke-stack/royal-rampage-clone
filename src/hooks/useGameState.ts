@@ -619,9 +619,10 @@ export const useGameState = () => {
           // Attack if in range
           if (distanceToTarget <= troop.range * 3) {
             const attackInterval = troop.cardId === 'giant' ? 1500 : 1200; // Giant: 1.5s, Others: 1.2s
-            if (currentTime - troop.lastAttackTime > attackInterval) {
-              // Attack logic will be handled in a separate state update to avoid mutation
-              return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime, target };
+            const shouldAttackNow = currentTime - troop.lastAttackTime >= attackInterval;
+            if (shouldAttackNow) {
+              // Mark that this troop should deal damage this frame
+              return { ...troop, state: 'attacking' as const, lastAttackTime: currentTime, target, shouldDealDamage: true };
             }
             return { ...troop, state: 'attacking' as const, target };
           }
@@ -697,8 +698,8 @@ export const useGameState = () => {
         let updatedEnemyTowers = [...prev.enemyTowers];
         
         updatedTroops.forEach(attackingTroop => {
-          const attackInterval = attackingTroop.cardId === 'giant' ? 1500 : 1200; // Giant: 1.5s, Others: 1.2s
-          if (attackingTroop.state === 'attacking' && attackingTroop.target && currentTime - attackingTroop.lastAttackTime >= attackInterval) {
+          // Check if this troop should deal damage this frame (marked in previous step)
+          if (attackingTroop.state === 'attacking' && attackingTroop.target && (attackingTroop as any).shouldDealDamage) {
             const target = attackingTroop.target;
             const damage = attackingTroop.damage;
             
@@ -723,8 +724,11 @@ export const useGameState = () => {
           }
         });
 
-        // Filter out dead troops
-        const aliveTroops = finalTroops.filter(troop => troop.health > 0);
+        // Filter out dead troops and clean up temporary damage flags
+        const aliveTroops = finalTroops.filter(troop => troop.health > 0).map(troop => {
+          const { shouldDealDamage, ...cleanTroop } = troop as any;
+          return cleanTroop as Troop;
+        });
 
         return { ...prev, troops: aliveTroops, playerTowers: updatedPlayerTowers, enemyTowers: updatedEnemyTowers };
       });
